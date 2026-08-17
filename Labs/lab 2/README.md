@@ -64,6 +64,10 @@ router ospf 1
  network 10.0.1.0 0.0.0.1 area 0
  network 10.0.1.2 0.0.0.1 area 0
  network 10.255.0.1 0.0.0.0 area 0
+Spine-01(config)# interface GigabitEthernet0/0
+Spine-01(config-if)# ip ospf network point-to-point
+Spine-01(config-if)# interface GigabitEthernet0/1
+Spine-01(config-if)# ip ospf network point-to-point
 !
 Spine-02
 cisco
@@ -87,6 +91,10 @@ router ospf 1
  network 10.0.2.0 0.0.0.1 area 0
  network 10.0.2.2 0.0.0.1 area 0
  network 10.255.0.2 0.0.0.0 area 0
+Spine-02(config)# interface GigabitEthernet0/0
+Spine-02(config-if)# ip ospf network point-to-point
+Spine-02(config-if)# interface GigabitEthernet0/1
+Spine-02(config-if)# ip ospf network point-to-point
 !
 Leaf-01
 cisco
@@ -108,6 +116,10 @@ router ospf 1
  network 10.0.1.1 0.0.0.0 area 0
  network 10.0.2.1 0.0.0.0 area 0
  network 10.255.0.11 0.0.0.0 area 0
+Leaf-01(config)# interface GigabitEthernet0/0
+Leaf-01(config-if)# ip ospf network point-to-point
+Leaf-01(config-if)# interface GigabitEthernet0/1
+Leaf-01(config-if)# ip ospf network point-to-point
 !
 Leaf-02
 cisco
@@ -129,6 +141,10 @@ router ospf 1
  network 10.0.1.3 0.0.0.0 area 0
  network 10.0.2.3 0.0.0.0 area 0
  network 10.255.0.12 0.0.0.0 area 0
+Leaf-02(config)# interface GigabitEthernet0/0
+Leaf-02(config-if)# ip ospf network point-to-point
+Leaf-02(config-if)# interface GigabitEthernet0/1
+Leaf-02(config-if)# ip ospf network point-to-point
 !
 Примечание: В конфигурациях используется команда network с обратной маской (wildcard mask). Для p2p-линков на Leaf-01 указан точный адрес /32 (0.0.0.0). Это допустимый и часто применяемый подход для точного контроля над анонсируемыми сетями.
 
