@@ -210,19 +210,22 @@ i L2    10.255.0.12/32 [115/20] via 10.0.1.3, GigabitEthernet0/0
                             [115/20] via 10.0.2.3, GigabitEthernet0/1
 ```
 |Параметр|	Значение|	Описание|
-|---:|:---|:---|
+|:|:---|:---|
 |Метка|	i L2|	IS-IS маршрут уровня Level-2|
 |Сеть|	10.255.0.2/32, 10.255.0.12/32|	Сети назначения (Loopback адреса)|
 |Метрика	|[115/20]|	Административная дистанция (115) |/ Метрика IS-IS (20)|
 |Next Hop|	10.0.2.0, 10.0.1.3, 10.0.2.3|	Адрес следующего шлюза|
 |Интерфейс|	GigabitEthernet0/1, GigabitEthernet0/0	|Выходной интерфейс|
+
 Интерпретация: В таблице маршрутизации Leaf-01 появились записи IS-IS:
 
 Маршрут до Loopback Spine-02 (10.255.0.2) через интерфейс Gi0/1 с метрикой 20.
 
-Маршрут до Loopback Leaf-02 (10.255.0.12) через два равнозначных пути (ECMP): через Spine-01 (10.0.1.3) и через Spine-02 (10.0.2.3) с одинаковой метрикой 20. Это ключевое преимущество топологии CLOS, реализованное через IS-IS.
+Маршрут до Loopback Leaf-02 (10.255.0.12) через два равнозначных пути (ECMP): через Spine-01 (10.0.1.3) и через Spine-02 (10.0.2.3) с одинаковой метрикой 20. 
+Это ключевое преимущество топологии CLOS, реализованное через IS-IS.
 
 5.3. Проверка базы данных IS-IS (LSP)
+```
 bash
 Leaf-01# show isis database
 
@@ -232,6 +235,7 @@ LSPID                 LSP Seq Num  LSP Checksum  LSP Holdtime      ATT/P/OL
 0100.0000.0002.00-00  0x00000007   0x5678        1195              0/0/0
 0100.0000.0011.00-00  0x00000007   0x9ABC        1195              0/0/0
 0100.0000.0012.00-00  0x00000007   0xDEF0        1195              0/0/0
+```
 Параметр	Значение	Описание
 LSPID	0100.0000.0001.00-00 и др.	Идентификатор Link State PDU
 LSP Seq Num	0x00000007	Номер последовательности LSP
@@ -242,21 +246,23 @@ ATT/P/OL	0/0/0	Флаги: Attached (0), Partition (0), Overload (0)
 
 5.4. Проверка связности
 Выполним ping с Loopback Leaf-01 до Loopback Leaf-02.
-
+```
 bash
 Leaf-01# ping 10.255.0.12 source 10.255.0.11
 Type escape sequence to abort.
 Sending 5, 100-byte ICMP Echos to 10.255.0.12, timeout is 2 seconds:
 !!!!!
 Success rate is 100 percent (5/5), round-trip min/avg/max = 1/2/4 ms
+```
 Выполним ping с Loopback Leaf-01 до Loopback Spine-01.
-
+```
 bash
 Leaf-01# ping 10.255.0.1 source 10.255.0.11
 Type escape sequence to abort.
 Sending 5, 100-byte ICMP Echos to 10.255.0.1, timeout is 2 seconds:
 !!!!!
 Success rate is 100 percent (5/5), round-trip min/avg/max = 1/2/5 ms
+```
 6. Сравнение IS-IS и OSPF
 Характеристика	OSPF	IS-IS
 Тип протокола	Link-State (IETF)	Link-State (ISO)
