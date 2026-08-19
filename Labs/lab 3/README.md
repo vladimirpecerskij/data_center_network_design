@@ -188,9 +188,10 @@ router isis
 bash
 Spine-01# show isis neighbors
 
-System Id      Type Interface   IP Address      State Holdtime Circuit Id
-Leaf-01        L2   Gi0/0       10.0.1.1        UP    26       0000.0000.0011.01
-Leaf-02        L2   Gi0/1       10.0.1.3        UP    28       0000.0000.0012.01
+|System Id  |    Type Interface |  IP Address     | State| Holdtime |Circuit Id|
+|:---|:---|:---|:---|:---|:---|
+|Leaf-01|        L2 |  Gi0/0 |      10.0.1.1 |      UP |   26   |    0000.0000.0011.01|
+|Leaf-02 |       L2 |  Gi0/1 |      10.0.1.3  |      UP|    28  |     0000.0000.0012.01|
 Параметр	Значение	Описание
 System Id	Leaf-01, Leaf-02	Идентификаторы соседних устройств
 Type	L2	Уровень IS-IS (Level-2)
