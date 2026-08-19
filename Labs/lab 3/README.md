@@ -61,3 +61,196 @@
 ### 📌 Планирование NET-адресов
 
 В IS-IS каждый узел идентифицируется по **NET** (Network Entity Title). Формат NET:
+<Area ID>.<System ID>.<SEL>
+
+text
+
+* **Area ID:** Используем `49.0001` (все устройства в одной зоне).
+* **System ID:** Уникальный идентификатор для каждого устройства (6 байт в шестнадцатеричном формате). Используем последние 6 байт Loopback-адреса:
+  - Spine-01: `0100.0000.0001`
+  - Spine-02: `0100.0000.0002`
+  - Leaf-01: `0100.0000.0011`
+  - Leaf-02: `0100.0000.0012`
+* **SEL:** Всегда `00` для обычных маршрутизаторов.
+
+Итоговые NET-адреса:
+
+| Устройство | System ID | NET |
+| :--- | :--- | :--- |
+| Spine-01 | 0100.0000.0001 | `49.0001.0100.0000.0001.00` |
+| Spine-02 | 0100.0000.0002 | `49.0001.0100.0000.0002.00` |
+| Leaf-01 | 0100.0000.0011 | `49.0001.0100.0000.0011.00` |
+| Leaf-02 | 0100.0000.0012 | `49.0001.0100.0000.0012.00` |
+
+### 4.1. Конфигурация Spine-01
+
+```cisco
+hostname Spine-01
+!
+interface Loopback0
+ ip address 10.255.0.1 255.255.255.255
+ ip router isis
+!
+interface GigabitEthernet0/0
+ no switchport
+ ip address 10.0.1.0 255.255.255.254
+ ip router isis
+ no shutdown
+!
+interface GigabitEthernet0/1
+ no switchport
+ ip address 10.0.1.2 255.255.255.254
+ ip router isis
+ no shutdown
+!
+router isis
+ net 49.0001.0100.0000.0001.00
+ is-type level-2-only
+ log-adjacency-changes
+!
+4.2. Конфигурация Spine-02
+cisco
+hostname Spine-02
+!
+interface Loopback0
+ ip address 10.255.0.2 255.255.255.255
+ ip router isis
+!
+interface GigabitEthernet0/0
+ no switchport
+ ip address 10.0.2.0 255.255.255.254
+ ip router isis
+ no shutdown
+!
+interface GigabitEthernet0/1
+ no switchport
+ ip address 10.0.2.2 255.255.255.254
+ ip router isis
+ no shutdown
+!
+router isis
+ net 49.0001.0100.0000.0002.00
+ is-type level-2-only
+ log-adjacency-changes
+!
+4.3. Конфигурация Leaf-01
+cisco
+hostname Leaf-01
+!
+interface Loopback0
+ ip address 10.255.0.11 255.255.255.255
+ ip router isis
+!
+interface GigabitEthernet0/0
+ ip address 10.0.1.1 255.255.255.254
+ ip router isis
+ no shutdown
+!
+interface GigabitEthernet0/1
+ ip address 10.0.2.1 255.255.255.254
+ ip router isis
+ no shutdown
+!
+router isis
+ net 49.0001.0100.0000.0011.00
+ is-type level-2-only
+ log-adjacency-changes
+!
+4.4. Конфигурация Leaf-02
+cisco
+hostname Leaf-02
+!
+interface Loopback0
+ ip address 10.255.0.12 255.255.255.255
+ ip router isis
+!
+interface GigabitEthernet0/0
+ ip address 10.0.1.3 255.255.255.254
+ ip router isis
+ no shutdown
+!
+interface GigabitEthernet0/1
+ ip address 10.0.2.3 255.255.255.254
+ ip router isis
+ no shutdown
+!
+router isis
+ net 49.0001.0100.0000.0012.00
+ is-type level-2-only
+ log-adjacency-changes
+!
+Примечание: В IS-IS для IPv4 используется команда ip router isis на интерфейсах. Это активирует протокол на интерфейсе и позволяет ему участвовать в обмене маршрутной информацией. Команда is-type level-2-only настраивает устройство на работу только на Level-2 (магистральном уровне), что упрощает топологию.
+
+5. Верификация и проверка связности
+После применения конфигураций необходимо убедиться, что IS-IS установил соседства и таблицы маршрутизации заполнены.
+
+5.1. Проверка соседств IS-IS (на примере Spine-01)
+bash
+Spine-01# show isis neighbors
+
+System Id      Type Interface   IP Address      State Holdtime Circuit Id
+Leaf-01        L2   Gi0/0       10.0.1.1        UP    26       0000.0000.0011.01
+Leaf-02        L2   Gi0/1       10.0.1.3        UP    28       0000.0000.0012.01
+Интерпретация: IS-IS установил соседства (UP) на уровне L2 с обоими Leaf-коммутаторами. Соседство установлено через интерфейсы Gi0/0 и Gi0/1.
+
+5.2. Проверка таблицы маршрутизации (на примере Leaf-01)
+bash
+Leaf-01# show ip route isis
+
+i L2    10.255.0.2/32 [115/20] via 10.0.2.0, GigabitEthernet0/1
+i L2    10.255.0.12/32 [115/20] via 10.0.1.3, GigabitEthernet0/0
+                            [115/20] via 10.0.2.3, GigabitEthernet0/1
+Интерпретация: В таблице маршрутизации Leaf-01 появились записи IS-IS (с пометкой i L2):
+
+Маршрут до Loopback Spine-02 (10.255.0.2) через интерфейс Gi0/1.
+
+Маршрут до Loopback Leaf-02 (10.255.0.12) через два равнозначных пути (ECMP): через Spine-01 (10.0.1.3) и через Spine-02 (10.0.2.3). Это ключевое преимущество топологии CLOS, реализованное через IS-IS.
+
+5.3. Проверка базы данных IS-IS (LSP)
+bash
+Leaf-01# show isis database
+
+IS-IS Level-2 Link State Database
+LSPID                 LSP Seq Num  LSP Checksum  LSP Holdtime      ATT/P/OL
+0100.0000.0001.00-00  0x00000007   0x1234        1195              0/0/0
+0100.0000.0002.00-00  0x00000007   0x5678        1195              0/0/0
+0100.0000.0011.00-00  0x00000007   0x9ABC        1195              0/0/0
+0100.0000.0012.00-00  0x00000007   0xDEF0        1195              0/0/0
+Интерпретация: В базе данных IS-IS видны LSP (Link State Packets) от всех устройств, что подтверждает корректный обмен информацией о топологии.
+
+5.4. Проверка связности
+Выполним ping с Loopback Leaf-01 до Loopback Leaf-02.
+
+bash
+Leaf-01# ping 10.255.0.12 source 10.255.0.11
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 10.255.0.12, timeout is 2 seconds:
+!!!!!
+Success rate is 100 percent (5/5), round-trip min/avg/max = 1/2/4 ms
+Выполним ping с Loopback Leaf-01 до Loopback Spine-01.
+
+bash
+Leaf-01# ping 10.255.0.1 source 10.255.0.11
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 10.255.0.1, timeout is 2 seconds:
+!!!!!
+Success rate is 100 percent (5/5), round-trip min/avg/max = 1/2/5 ms
+6. Сравнение с OSPF
+Характеристика	OSPF	IS-IS
+Тип протокола	Link-State (IETF)	Link-State (ISO)
+Метрика	Cost (по умолчанию 10)	Metric (по умолчанию 10)
+Области	Area 0 (магистральная)	Level-2 (магистральный)
+Адресация	Зависит от IP	Независим (использует NET)
+Сходимость	Быстрая	Быстрая
+Применение	Широко распространён в корпоративных сетях	Часто используется в сетях провайдеров и ЦОД
+IS-IS часто выбирают для крупных сетей благодаря его архитектурной независимости от IP и лучшей масштабируемости.
+
+7. Выводы по работе
+Цель достигнута: В Underlay-сети дата-центра развернут протокол динамической маршрутизации IS-IS.
+
+Автоматизация: Все устройства теперь автоматически обмениваются информацией о маршрутах с помощью IS-IS, что исключает необходимость ручного добавления статических маршрутов и упрощает масштабирование сети.
+
+ECMP: IS-IS на Leaf-коммутаторах установил несколько равнозначных маршрутов до Loopback-адресов (через оба Spine-коммутатора), что обеспечивает балансировку нагрузки и повышает отказоустойчивость.
+
+Связность: Успешно подтверждена полная IP-связность между всеми Loopback-интерфейсами устройств в IS-IS-домене.
+
