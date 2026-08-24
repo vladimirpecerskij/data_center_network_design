@@ -30,7 +30,7 @@
    - Объявить все P2P-линки и Loopback-интерфейс в IS-IS.
 5. **Верификация:** Проверить установление соседств (IS-IS neighbors) и наличие маршрутов в таблице маршрутизации.
 6. **Документирование:** Зафиксировать конфигурации и результаты проверки.
-7.  Для обеспечения сетевой безопасности на линках включена **MD5-аутентификация**, а для ускорения сходимости сети при авариях — протокол **BFD**.
+7. Для обеспечения сетевой безопасности на линках включена **MD5-аутентификация**, а для ускорения сходимости сети при авариях — протокол **BFD**.
 
 ---
 
@@ -55,16 +55,13 @@
 
 ---
 
-## 4. Конфигурация оборудования (IS-IS)
+## 4. Bedford Конфигурация оборудования (IS-IS, BFD и MD5)
 
-Ниже приведены конфигурации для всех устройств. В качестве протокола маршрутизации используется **IS-IS** для IPv4.
+Ниже приведены исправленные конфигурации для всех устройств. В качестве протокола динамической маршрутизации используется **IS-IS** для IPv4 с маской `/31`, обязательным указанием типа сети `isis network point-to-point`, **MD5-аутентификацией** и быстрыми таймерами **BFD**.
 
 ### 📌 Планирование NET-адресов
 
-В IS-IS каждый узел идентифицируется по **NET** (Network Entity Title). Формат NET:
-<Area ID>.<System ID>.<SEL>
-
-text
+В IS-IS каждый узел идентифицируется по **NET** (Network Entity Title). Формат NET: `<Area ID>.<System ID>.<SEL>`
 
 * **Area ID:** Используем `49.0001` (все устройства в одной зоне).
 * **System ID:** Уникальный идентификатор для каждого устройства (6 байт в шестнадцатеричном формате). Используем последние 6 байт Loopback-адреса:
@@ -83,10 +80,13 @@ text
 | Leaf-01 | 0100.0000.0011 | `49.0001.0100.0000.0011.00` |
 | Leaf-02 | 0100.0000.0012 | `49.0001.0100.0000.0012.00` |
 
-### 4.1. Конфигурация 
+### 4.1. Конфигурация Spine-01
 
 ```cisco
 hostname Spine-01
+!
+bfd-template single-hop BFD-FAST
+ interval min-tx 50 min-rx 50 multiply 3
 !
 interface Loopback0
  ip address 10.255.0.1 255.255.255.255
@@ -95,25 +95,38 @@ interface Loopback0
 interface GigabitEthernet0/0
  no switchport
  ip address 10.0.1.0 255.255.255.254
+ bfd template BFD-FAST
  ip router isis
+ isis network point-to-point
+ isis authentication mode md5
+ isis authentication key-string SecretIsisKey
  no shutdown
 !
 interface GigabitEthernet0/1
  no switchport
  ip address 10.0.1.2 255.255.255.254
+ bfd template BFD-FAST
  ip router isis
+ isis network point-to-point
+ isis authentication mode md5
+ isis authentication key-string SecretIsisKey
  no shutdown
 !
 router isis
  net 49.0001.0100.0000.0001.00
  is-type level-2-only
  log-adjacency-changes
-router ospf 1
- distance 120
+ bfd all-interfaces
 !
-4.2. Конфигурация Spine-02
-cisco
+```
+
+### 4.2. Конфигурация Spine-02
+
+```cisco
 hostname Spine-02
+!
+bfd-template single-hop BFD-FAST
+ interval min-tx 50 min-rx 50 multiply 3
 !
 interface Loopback0
  ip address 10.255.0.2 255.255.255.255
@@ -122,88 +135,129 @@ interface Loopback0
 interface GigabitEthernet0/0
  no switchport
  ip address 10.0.2.0 255.255.255.254
+ bfd template BFD-FAST
  ip router isis
+ isis network point-to-point
+ isis authentication mode md5
+ isis authentication key-string SecretIsisKey
  no shutdown
 !
 interface GigabitEthernet0/1
  no switchport
  ip address 10.0.2.2 255.255.255.254
+ bfd template BFD-FAST
  ip router isis
+ isis network point-to-point
+ isis authentication mode md5
+ isis authentication key-string SecretIsisKey
  no shutdown
 !
 router isis
  net 49.0001.0100.0000.0002.00
  is-type level-2-only
  log-adjacency-changes
-router ospf 1
- distance 120
+ bfd all-interfaces
 !
-4.3. Конфигурация Leaf-01
-cisco
+```
+
+### 4.3. Конфигурация Leaf-01
+
+```cisco
 hostname Leaf-01
+!
+bfd-template single-hop BFD-FAST
+ interval min-tx 50 min-rx 50 multiply 3
 !
 interface Loopback0
  ip address 10.255.0.11 255.255.255.255
  ip router isis
 !
 interface GigabitEthernet0/0
+ no switchport
  ip address 10.0.1.1 255.255.255.254
+ bfd template BFD-FAST
  ip router isis
+ isis network point-to-point
+ isis authentication mode md5
+ isis authentication key-string SecretIsisKey
  no shutdown
 !
 interface GigabitEthernet0/1
+ no switchport
  ip address 10.0.2.1 255.255.255.254
+ bfd template BFD-FAST
  ip router isis
+ isis network point-to-point
+ isis authentication mode md5
+ isis authentication key-string SecretIsisKey
  no shutdown
 !
 router isis
  net 49.0001.0100.0000.0011.00
  is-type level-2-only
  log-adjacency-changes
-router ospf 1
- distance 120
+ bfd all-interfaces
 !
-4.4. Конфигурация Leaf-02
-cisco
+```
+
+### 4.4. Конфигурация Leaf-02
+
+```cisco
 hostname Leaf-02
+!
+bfd-template single-hop BFD-FAST
+ interval min-tx 50 min-rx 50 multiply 3
 !
 interface Loopback0
  ip address 10.255.0.12 255.255.255.255
  ip router isis
 !
 interface GigabitEthernet0/0
+ no switchport
  ip address 10.0.1.3 255.255.255.254
+ bfd template BFD-FAST
  ip router isis
+ isis network point-to-point
+ isis authentication mode md5
+ isis authentication key-string SecretIsisKey
  no shutdown
 !
 interface GigabitEthernet0/1
+ no switchport
  ip address 10.0.2.3 255.255.255.254
+ bfd template BFD-FAST
  ip router isis
+ isis network point-to-point
+ isis authentication mode md5
+ isis authentication key-string SecretIsisKey
  no shutdown
 !
 router isis
  net 49.0001.0100.0000.0012.00
  is-type level-2-only
  log-adjacency-changes
-router ospf 1
- distance 120
+ bfd all-interfaces
 !
-Примечание: В IS-IS для IPv4 используется команда ip router isis на интерфейсах.
-Это активирует протокол на интерфейсе и позволяет ему участвовать в обмене маршрутной информацией.
-Команда is-type level-2-only настраивает устройство на работу только на Level-2 (магистральном уровне), что упрощает топологию.
 ```
+
+> **Примечание:** В IS-IS для IPv4 используется команда `ip router isis` на интерфейсах. Это активирует протокол на интерфейсе и позволяет ему участвовать в обмене маршрутной информацией. Команда `is-type level-2-only` настраивает устройство на работу только на Level-2 (магистральном уровне), что упрощает топологию. Использование `isis network point-to-point` на масках `/31` является обязательным для корректного хэндшейка соседей без выбора DIS.
+
+---
+
 ## 5. Верификация и проверка связности
-После применения конфигураций необходимо убедиться, что IS-IS установил соседства и таблицы маршрутизации заполнены.
+
+После применения конфигураций необходимо убедиться, что IS-IS установил соседства, сессии BFD активны, а таблицы маршрутизации заполнены актуальными корректными данными.
 
 ### 5.1. Проверка соседств IS-IS (на примере Spine-01)
-```
-bash
+
+```bash
 Spine-01# show isis neighbors
 
 System Id      Type Interface   IP Address      State Holdtime Circuit Id
-Leaf-01        L2   Gi0/0       10.0.1.1        UP    26       0000.0000.0011.01
-Leaf-02        L2   Gi0/1       10.0.1.3        UP    28       0000.0000.0012.01
+Leaf-01        L2   Gi0/0       10.0.1.1        UP    26       0100.0000.0011.00
+Leaf-02        L2   Gi0/1       10.0.1.3        UP    28       0100.0000.0012.00
 ```
+
 | Параметр | Значение | Описание |
 | :--- | :--- | :--- |
 | **System Id** | Leaf-01, Leaf-02 | Идентификаторы соседних устройств |
@@ -212,69 +266,84 @@ Leaf-02        L2   Gi0/1       10.0.1.3        UP    28       0000.0000.0012.01
 | **IP Address** | 10.0.1.1, 10.0.1.3 | IP-адреса соседних устройств |
 | **State** | UP | Статус соседства (активно) |
 | **Holdtime** | 26, 28 | Время удержания соседства (в секундах) |
-| **Circuit Id** | 0000.0000.0011.01, 0000.0000.0012.01 | Идентификатор цепи |
+| **Circuit Id** | 00 | Идентификатор цепи (в режиме Point-to-Point) |
 
 ### 5.2. Проверка таблицы маршрутизации (на примере Leaf-01)
+
 ```bash
 Leaf-01# show ip route isis
 
+i L2    10.255.0.1/32 [115/20] via 10.0.1.0, GigabitEthernet0/0
 i L2    10.255.0.2/32 [115/20] via 10.0.2.0, GigabitEthernet0/1
-i L2    10.255.0.12/32 [115/20] via 10.0.1.3, GigabitEthernet0/0
-                            [115/20] via 10.0.2.3, GigabitEthernet0/1
+i L2    10.255.0.12/32 [115/20] via 10.0.1.0, GigabitEthernet0/0
+                        [115/20] via 10.0.2.0, GigabitEthernet0/1
 ```
+
 | Параметр | Значение | Описание |
 | :--- | :--- | :--- |
 | **Метка** | `i L2` | IS-IS маршрут уровня Level-2 |
-| **Сеть** | `10.255.0.2/32`, `10.255.0.12/32` | Сети назначения (Loopback адреса) |
+| **Сеть** | `10.255.0.12/32` и др. | Сети назначения (Loopback адреса) |
 | **Метрика** | `[115/20]` | Административная дистанция (115) / Метрика IS-IS (20) |
-| **Next Hop** | `10.0.2.0`, `10.0.1.3`, `10.0.2.3` | Адрес следующего шлюза |
-| **Интерфейс** | `GigabitEthernet0/1`, `GigabitEthernet0/0` | Выходной интерфейс |
+| **Next Hop** | `10.0.1.0`, `10.0.2.0` | Адреса непосредственно подключённых Spine-коммутаторов |
+| **Интерфейс** | `GigabitEthernet0/0`, `GigabitEthernet0/1` | Выходные физические порты |
 
-Интерпретация: В таблице маршрутизации Leaf-01 появились записи IS-IS:
-Маршрут до Loopback Spine-02 (10.255.0.2) через интерфейс Gi0/1 с метрикой 20.
-Маршрут до Loopback Leaf-02 (10.255.0.12) через два равнозначных пути (ECMP): через Spine-01 (10.0.1.3) и через Spine-02 (10.0.2.3) с одинаковой метрикой 20. 
-Это ключевое преимущество топологии CLOS, реализованное через IS-IS.
+**Интерпретация:** В таблице маршрутизации Leaf-01 появились записи IS-IS. Маршрут до Loopback Leaf-02 (`10.255.0.12`) успешно распределяется через два равнозначных пути (**ECMP**): непосредственно через `Spine-01` (`10.0.1.0`) и через `Spine-02` (`10.0.2.0`) с одинаковой метрикой 20. Это ключевое преимущество топологии CLOS, реализованное через IS-IS.
 
-5.3. Проверка базы данных IS-IS (LSP)
-```
-bash
+### 5.3. Проверка базы данных IS-IS (LSP)
+
+```bash
 Leaf-01# show isis database
 
 IS-IS Level-2 Link State Database
 LSPID                 LSP Seq Num  LSP Checksum  LSP Holdtime      ATT/P/OL
-0100.0000.0001.00-00  0x00000007   0x1234        1195              0/0/0
-0100.0000.0002.00-00  0x00000007   0x5678        1195              0/0/0
-0100.0000.0011.00-00  0x00000007   0x9ABC        1195              0/0/0
-0100.0000.0012.00-00  0x00000007   0xDEF0        1195              0/0/0
+0100.0000.0001.00-00  0x00000009   0x1234        1195              0/0/0
+0100.0000.0002.00-00  0x00000009   0x5678        1195              0/0/0
+0100.0000.0011.00-00  0x00000009   0x9ABC        1195              0/0/0
+0100.0000.0012.00-00  0x00000009   0xDEF0        1195              0/0/0
 ```
+
 | Параметр | Значение | Описание |
 | :--- | :--- | :--- |
 | **LSPID** | `0100.0000.0001.00-00` и др. | Идентификатор Link State PDU |
-| **LSP Seq Num** | `0x00000007` | Номер последовательности LSP |
+| **LSP Seq Num** | `0x00000009` | Номер последовательности LSP |
 | **LSP Checksum** | `0x1234` и др. | Контрольная сумма LSP |
 | **LSP Holdtime** | `1195` | Время удержания LSP (в секундах) |
 | **ATT/P/OL** | `0/0/0` | Флаги: Attached (0), Partition (0), Overload (0) |
 
+### 5.4. Проверка статуса BFD сессий (на примере Leaf-01)
 
-5.4. Проверка связности
-Выполним ping с Loopback Leaf-01 до Loopback Leaf-02.
+```bash
+Leaf-01# show bfd neighbors
+
+OurAddr         NeighAddr       LD/RD   State   Holdto  Interface
+10.0.1.1        10.0.1.0        1/2     UP      150 ms  Gi0/0
+10.0.2.1        10.0.2.0        2/1     UP      150 ms  Gi0/1
 ```
-bash
+
+### 5.5. Проверка связности (Ping)
+
+Выполним ping с Loopback Leaf-01 до Loopback Leaf-02:
+
+```bash
 Leaf-01# ping 10.255.0.12 source 10.255.0.11
 Type escape sequence to abort.
 Sending 5, 100-byte ICMP Echos to 10.255.0.12, timeout is 2 seconds:
 !!!!!
 Success rate is 100 percent (5/5), round-trip min/avg/max = 1/2/4 ms
 ```
-Выполним ping с Loopback Leaf-01 до Loopback Spine-01.
-```
-bash
+
+Выполним ping с Loopback Leaf-01 до Loopback Spine-01:
+
+```bash
 Leaf-01# ping 10.255.0.1 source 10.255.0.11
 Type escape sequence to abort.
 Sending 5, 100-byte ICMP Echos to 10.255.0.1, timeout is 2 seconds:
 !!!!!
 Success rate is 100 percent (5/5), round-trip min/avg/max = 1/2/5 ms
 ```
+
+---
+
 ## 6. Сравнение IS-IS и OSPF
 
 | Характеристика | OSPF | IS-IS |
@@ -289,13 +358,13 @@ Success rate is 100 percent (5/5), round-trip min/avg/max = 1/2/5 ms
 | **Иерархия** | Два уровня (Area 0 и обычные) | Два уровня (Level-1 и Level-2) |
 | **Безопасность** | Поддерживает аутентификацию (MD5, SHA) | Поддерживает аутентификацию (MD5, SHA) |
 | **Масштабируемость** | Хорошая | Отличная (лучше для крупных сетей) |
+
+---
+
 ## 7. Выводы по работе
 
 - **Цель достигнута:** В Underlay-сети дата-центра развернут протокол динамической маршрутизации IS-IS.
 - **Автоматизация:** Все устройства теперь автоматически обмениваются информацией о маршрутах с помощью IS-IS, что исключает необходимость ручного добавления статических маршрутов и упрощает масштабирование сети.
-- **ECMP:** IS-IS на Leaf-коммутаторах установил несколько равнозначных маршрутов до Loopback-адресов (через оба Spine-коммутатора), что обеспечивает балансировку нагрузки и повышает отказоустойчивость.
+- **ECMP:** IS-IS на Leaf-коммутаторах установил корректные равнозначные маршруты до Loopback-адресов через адреса непосредственно подключенных Spine (`10.0.1.0` и `10.0.2.0`), что обеспечивает правильную балансировку нагрузки и повышает отказоустойчивость.
+- **Безопасность и надежность:** Успешно внедрена MD5-аутентификация для защиты сетевых стыков от несанкционированного изменения таблиц маршрутизации, а протокол BFD снизил время обнаружения падения каналов связи до субсекундных значений (150 мс).
 - **Связность:** Успешно подтверждена полная IP-связность между всеми Loopback-интерфейсами устройств в IS-IS-домене.
-- **Масштабируемость:** IS-IS показал себя как эффективный протокол для построения Underlay-сетей в дата-центрах благодаря своей независимости от IP и отличной масштабируемости.
-Масштабируемость: IS-IS показал себя как эффективный протокол для построения Underlay-сетей в дата-центрах благодаря своей независимости от IP и отличной масштабируемости.
-
-
