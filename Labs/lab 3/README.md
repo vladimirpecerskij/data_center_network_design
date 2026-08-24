@@ -100,7 +100,7 @@ bfd interval 50 min_rx 50 multiplier 3
  ip router isis
  isis network point-to-point
  isis authentication mode md5
- isis authentication key-string SecretIsisKey
+ isis authentication key-chain ISIS-KEYS
  no shutdown
 !
 interface GigabitEthernet0/1
@@ -110,7 +110,7 @@ interface GigabitEthernet0/1
  ip router isis
  isis network point-to-point
  isis authentication mode md5
- isis authentication key-string SecretIsisKey
+ isis authentication key-chain ISIS-KEYS
  no shutdown
 !
 router isis
@@ -141,7 +141,7 @@ interface GigabitEthernet0/0
  ip router isis
  isis network point-to-point
  isis authentication mode md5
- isis authentication key-string SecretIsisKey
+ isis authentication key-chain ISIS-KEYS
  no shutdown
 !
 interface GigabitEthernet0/1
@@ -151,7 +151,7 @@ interface GigabitEthernet0/1
  ip router isis
  isis network point-to-point
  isis authentication mode md5
- isis authentication key-string SecretIsisKey
+ isis authentication key-chain ISIS-KEYS
  no shutdown
 !
 router isis
@@ -182,7 +182,7 @@ interface GigabitEthernet0/0
  ip router isis
  isis network point-to-point
  isis authentication mode md5
- isis authentication key-string SecretIsisKey
+ isis authentication key-chain ISIS-KEYS
  no shutdown
 !
 interface GigabitEthernet0/1
@@ -192,7 +192,7 @@ bfd interval 50 min_rx 50 multiplier 3
  ip router isis
  isis network point-to-point
  isis authentication mode md5
- isis authentication key-string SecretIsisKey
+ isis authentication key-chain ISIS-KEYS
  no shutdown
 !
 router isis
@@ -223,7 +223,7 @@ interface GigabitEthernet0/0
  ip router isis
  isis network point-to-point
  isis authentication mode md5
- isis authentication key-string SecretIsisKey
+ isis authentication key-chain ISIS-KEYS
  no shutdown
 !
 interface GigabitEthernet0/1
@@ -233,7 +233,7 @@ interface GigabitEthernet0/1
  ip router isis
  isis network point-to-point
  isis authentication mode md5
- isis authentication key-string SecretIsisKey
+ isis authentication key-chain ISIS-KEYS
  no shutdown
 !
 router isis
