@@ -107,6 +107,8 @@ router isis
  net 49.0001.0100.0000.0001.00
  is-type level-2-only
  log-adjacency-changes
+router ospf 1
+ distance 120
 !
 4.2. Конфигурация Spine-02
 cisco
@@ -132,6 +134,8 @@ router isis
  net 49.0001.0100.0000.0002.00
  is-type level-2-only
  log-adjacency-changes
+router ospf 1
+ distance 120
 !
 4.3. Конфигурация Leaf-01
 cisco
@@ -155,6 +159,8 @@ router isis
  net 49.0001.0100.0000.0011.00
  is-type level-2-only
  log-adjacency-changes
+router ospf 1
+ distance 120
 !
 4.4. Конфигурация Leaf-02
 cisco
@@ -178,6 +184,8 @@ router isis
  net 49.0001.0100.0000.0012.00
  is-type level-2-only
  log-adjacency-changes
+router ospf 1
+ distance 120
 !
 Примечание: В IS-IS для IPv4 используется команда ip router isis на интерфейсах.
 Это активирует протокол на интерфейсе и позволяет ему участвовать в обмене маршрутной информацией.
