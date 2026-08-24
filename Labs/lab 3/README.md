@@ -85,9 +85,6 @@
 ```cisco
 hostname Spine-01
 !
-bfd-template single-hop BFD-FAST
- interval min-tx 50 min-rx 50 multiply 3
-!
 interface Loopback0
  ip address 10.255.0.1 255.255.255.255
  ip router isis
@@ -95,7 +92,7 @@ interface Loopback0
 interface GigabitEthernet0/0
  no switchport
  ip address 10.0.1.0 255.255.255.254
- bfd template BFD-FAST
+bfd interval 50 min_rx 50 multiplier 3
  ip router isis
  isis network point-to-point
  isis authentication mode md5
@@ -105,7 +102,7 @@ interface GigabitEthernet0/0
 interface GigabitEthernet0/1
  no switchport
  ip address 10.0.1.2 255.255.255.254
- bfd template BFD-FAST
+ bfd interval 50 min_rx 50 multiplier 3
  ip router isis
  isis network point-to-point
  isis authentication mode md5
@@ -125,9 +122,6 @@ router isis
 ```cisco
 hostname Spine-02
 !
-bfd-template single-hop BFD-FAST
- interval min-tx 50 min-rx 50 multiply 3
-!
 interface Loopback0
  ip address 10.255.0.2 255.255.255.255
  ip router isis
@@ -135,7 +129,7 @@ interface Loopback0
 interface GigabitEthernet0/0
  no switchport
  ip address 10.0.2.0 255.255.255.254
- bfd template BFD-FAST
+ bfd interval 50 min_rx 50 multiplier 3
  ip router isis
  isis network point-to-point
  isis authentication mode md5
@@ -145,7 +139,7 @@ interface GigabitEthernet0/0
 interface GigabitEthernet0/1
  no switchport
  ip address 10.0.2.2 255.255.255.254
- bfd template BFD-FAST
+ bfd interval 50 min_rx 50 multiplier 3
  ip router isis
  isis network point-to-point
  isis authentication mode md5
@@ -165,9 +159,6 @@ router isis
 ```cisco
 hostname Leaf-01
 !
-bfd-template single-hop BFD-FAST
- interval min-tx 50 min-rx 50 multiply 3
-!
 interface Loopback0
  ip address 10.255.0.11 255.255.255.255
  ip router isis
@@ -175,7 +166,7 @@ interface Loopback0
 interface GigabitEthernet0/0
  no switchport
  ip address 10.0.1.1 255.255.255.254
- bfd template BFD-FAST
+ bfd interval 50 min_rx 50 multiplier 3
  ip router isis
  isis network point-to-point
  isis authentication mode md5
@@ -185,7 +176,7 @@ interface GigabitEthernet0/0
 interface GigabitEthernet0/1
  no switchport
  ip address 10.0.2.1 255.255.255.254
- bfd template BFD-FAST
+bfd interval 50 min_rx 50 multiplier 3
  ip router isis
  isis network point-to-point
  isis authentication mode md5
@@ -205,9 +196,6 @@ router isis
 ```cisco
 hostname Leaf-02
 !
-bfd-template single-hop BFD-FAST
- interval min-tx 50 min-rx 50 multiply 3
-!
 interface Loopback0
  ip address 10.255.0.12 255.255.255.255
  ip router isis
@@ -215,7 +203,7 @@ interface Loopback0
 interface GigabitEthernet0/0
  no switchport
  ip address 10.0.1.3 255.255.255.254
- bfd template BFD-FAST
+ bfd interval 50 min_rx 50 multiplier 3
  ip router isis
  isis network point-to-point
  isis authentication mode md5
@@ -225,7 +213,7 @@ interface GigabitEthernet0/0
 interface GigabitEthernet0/1
  no switchport
  ip address 10.0.2.3 255.255.255.254
- bfd template BFD-FAST
+ bfd interval 50 min_rx 50 multiplier 3
  ip router isis
  isis network point-to-point
  isis authentication mode md5
