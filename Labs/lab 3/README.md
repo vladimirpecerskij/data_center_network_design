@@ -85,6 +85,10 @@
 ```cisco
 hostname Spine-01
 !
+key chain ISIS-KEYS
+ key 1
+  key-string SecretIsisKey
+!
 interface Loopback0
  ip address 10.255.0.1 255.255.255.255
  ip router isis
@@ -121,6 +125,10 @@ router isis
 
 ```cisco
 hostname Spine-02
+!
+key chain ISIS-KEYS
+ key 1
+  key-string SecretIsisKey
 !
 interface Loopback0
  ip address 10.255.0.2 255.255.255.255
@@ -159,6 +167,10 @@ router isis
 ```cisco
 hostname Leaf-01
 !
+key chain ISIS-KEYS
+ key 1
+  key-string SecretIsisKey
+!
 interface Loopback0
  ip address 10.255.0.11 255.255.255.255
  ip router isis
@@ -195,6 +207,10 @@ router isis
 
 ```cisco
 hostname Leaf-02
+!
+key chain ISIS-KEYS
+ key 1
+  key-string SecretIsisKey
 !
 interface Loopback0
  ip address 10.255.0.12 255.255.255.255
