@@ -413,64 +413,152 @@ BFD с таймерами 50 мс и множителем 3 даёт тайма�
 
 5. Верификация
 5.1. Проверка BGP-соседств
-На Nexus 5000 (Super-Spine):
+На Super-Spine (Nexus 5000)
+Команда:
 
 text
-NEXUS-5000# show ip bgp summary
+show ip bgp summary
+Вывод:
+
+text
+BGP summary information for VRF default, address family IPv4 Unicast
+BGP router identifier 10.0.0.1, local AS number 65000
 Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
 10.1.1.1        4 65001      25      25       25    0    0 00:12:30        6
 10.1.1.3        4 65002      24      24       25    0    0 00:12:28        6
 10.1.1.5        4 65003      26      26       25    0    0 00:12:35        6
-Каждый Spine должен передать 3 префикса (Loopback-адреса Leaf) + свои собственные (Loopback и линки) – всего не менее 4–5 префиксов.
+Пояснение полей:
 
-На Leaf-01:
+Параметр	Значение	Описание
+Neighbor	IP-адрес соседа	Spine-01 (10.1.1.1), Spine-02 (10.1.1.3), Spine-03 (10.1.1.5)
+V	4	Версия BGP (4)
+AS	65001, 65002, 65003	Номер AS соседа
+MsgRcvd / MsgSent	~25	Количество полученных и отправленных BGP-сообщений
+Up/Down	00:12:30	Время установленного соседства
+State/PfxRcd	6	Количество префиксов, полученных от соседа (каждый Spine анонсирует свои Loopback, линки и Loopback трёх Leaf)
+На Leaf-01 (Arista)
+Команда:
 
 text
-Leaf-01# show ip bgp summary
+show ip bgp summary
+Вывод:
+
+text
+BGP summary information for VRF default, address family IPv4 Unicast
+BGP router identifier 10.0.4.1, local AS number 65004
 Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
 10.1.2.0        4 65001      20      20       20    0    0 00:10:45        8
 10.1.2.6        4 65002      19      19       20    0    0 00:10:40        8
 10.1.2.12       4 65003      21      21       20    0    0 00:10:55        8
-Leaf должен получить маршруты до всех остальных устройств (включая Super-Spine, другие Spine и другие Leaf).
+Пояснение:
 
+Параметр	Значение	Описание
+Neighbor	10.1.2.0, 10.1.2.6, 10.1.2.12	IP-адреса Spine-01, Spine-02, Spine-03 соответственно
+AS	65001, 65002, 65003	AS каждого Spine
+State/PfxRcd	8	Количество полученных префиксов (включая маршруты до Super-Spine, других Spine и других Leaf)
 5.2. Проверка BFD-сессий
-На Nexus 5000:
+На Super-Spine (Nexus 5000)
+Команда:
 
 text
-NEXUS-5000# show bfd neighbors
+show bfd neighbors
+Вывод:
+
+text
 OurAddr      NeighAddr    LD/RD         RH/RS     Holdown(mult)    State       Int
 10.1.1.0     10.1.1.1     1090519041/0  Up        0(3)             Up          Eth2/1
 10.1.1.2     10.1.1.3     1090519042/0  Up        0(3)             Up          Eth2/2
 10.1.1.4     10.1.1.5     1090519043/0  Up        0(3)             Up          Eth2/3
-На Spine-01:
+Пояснение:
+
+Параметр	Значение	Описание
+OurAddr	10.1.1.0, 10.1.1.2, 10.1.1.4	Локальный IP-адрес интерфейса
+NeighAddr	10.1.1.1, 10.1.1.3, 10.1.1.5	IP-адрес соседа (Spine)
+State	Up	Состояние BFD-сессии (должно быть Up)
+Int	Eth2/1, Eth2/2, Eth2/3	Интерфейс, на котором установлена сессия
+На Spine-01
+Команда:
 
 text
-Spine-01# show bfd neighbors
+show bfd neighbors
+Вывод:
+
+text
 OurAddr      NeighAddr    State       Int
 10.1.1.1     10.1.1.0     Up          Eth1
 10.1.2.0     10.1.2.1     Up          Eth2
 10.1.2.2     10.1.2.3     Up          Eth3
 10.1.2.4     10.1.2.5     Up          Eth4
+Все сессии должны быть в состоянии Up.
+
 5.3. Проверка таблицы маршрутизации на Leaf-01
+Команда:
+
 text
-Leaf-01# show ip route bgp
+show ip route bgp
+Вывод:
+
+text
+BGP routing table entries for address family IPv4
+Codes: B - BGP, O - OSPF, C - Connected, S - Static
 B        10.0.0.1/32 [20/0] via 10.1.2.0, Ethernet1
 B        10.0.1.1/32 [20/0] via 10.1.2.0, Ethernet1
 B        10.0.2.1/32 [20/0] via 10.1.2.6, Ethernet2
 B        10.0.3.1/32 [20/0] via 10.1.2.12, Ethernet3
-B        10.0.5.1/32 [20/0] via 10.1.2.0, Ethernet1   (до Leaf-02 через Spine-01)
-B        10.0.6.1/32 [20/0] via 10.1.2.0, Ethernet1   (до Leaf-03 через Spine-01)
-5.4. Проверка связности между Leaf
-С Leaf-01 на Leaf-02:
+B        10.0.5.1/32 [20/0] via 10.1.2.0, Ethernet1
+B        10.0.6.1/32 [20/0] via 10.1.2.0, Ethernet1
+Пояснение:
+
+Параметр	Значение	Описание
+Маршрут	10.0.0.1/32	Loopback Super-Spine
+Маршрут	10.0.1.1/32	Loopback Spine-01
+Маршрут	10.0.2.1/32	Loopback Spine-02
+Маршрут	10.0.3.1/32	Loopback Spine-03
+Маршрут	10.0.5.1/32	Loopback Leaf-02
+Маршрут	10.0.6.1/32	Loopback Leaf-03
+Next Hop	10.1.2.0, 10.1.2.6, 10.1.2.12	IP-адрес следующего перехода (Spine)
+Интерфейс	Ethernet1, Ethernet2, Ethernet3	Выходной интерфейс
+Leaf-01 знает маршруты до всех устройств в Underlay-сети.
+
+5.4. Проверка связности между Loopback-адресами
+С Leaf-01 на Super-Spine
+Команда:
 
 text
-Leaf-01# ping 10.0.5.1 source 10.0.4.1
+ping 10.0.0.1 source 10.0.4.1
+Результат:
+
+text
 !!!!!
 Success rate is 100 percent (5/5)
-С Leaf-01 на Leaf-03:
+С Leaf-01 на Leaf-02
+Команда:
 
 text
-Leaf-01# ping 10.0.6.1 source 10.0.4.1
+ping 10.0.5.1 source 10.0.4.1
+Результат:
+
+text
+!!!!!
+Success rate is 100 percent (5/5)
+С Leaf-01 на Leaf-03
+Команда:
+
+text
+ping 10.0.6.1 source 10.0.4.1
+Результат:
+
+text
+!!!!!
+Success rate is 100 percent (5/5)
+С Spine-01 на Spine-03 (через Super-Spine)
+Команда:
+
+text
+ping 10.0.3.1 source 10.0.1.1
+Результат:
+
+text
 !!!!!
 Success rate is 100 percent (5/5)
 6. Заключение
