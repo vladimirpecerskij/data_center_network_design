@@ -143,8 +143,9 @@ router bgp 65000
     password 0 MySecretKey123
     address-family ipv4 unicast
       disable-peer-as-check
-4.2. Spine-01 (Arista vEOS, AS 65001)
-text
+```
+### 4.2. Spine-01 (Arista vEOS, AS 65001)
+```text
 hostname Spine-01
 !
 interface Ethernet1
@@ -191,8 +192,9 @@ router bgp 65001
     bfd
     password MySecretKey123
     address-family ipv4
-4.3. Spine-02 (Arista vEOS, AS 65002)
-text
+```
+### 4.3. Spine-02 (Arista vEOS, AS 65002)
+```text
 hostname Spine-02
 !
 interface Ethernet1
@@ -239,8 +241,9 @@ router bgp 65002
     bfd
     password MySecretKey123
     address-family ipv4
-4.4. Spine-03 (Arista vEOS, AS 65003)
-text
+```
+###4.4. Spine-03 (Arista vEOS, AS 65003)
+```text
 hostname Spine-03
 !
 interface Ethernet1
@@ -287,8 +290,9 @@ router bgp 65003
     bfd
     password MySecretKey123
     address-family ipv4
-4.5. Leaf-01 (Arista vEOS, AS 65004)
-text
+```
+### 4.5. Leaf-01 (Arista vEOS, AS 65004)
+```text
 hostname Leaf-01
 !
 interface Ethernet1
@@ -326,8 +330,9 @@ router bgp 65004
     bfd
     password MySecretKey123
     address-family ipv4
-4.6. Leaf-02 (Arista vEOS, AS 65005)
-text
+```
+### 4.6. Leaf-02 (Arista vEOS, AS 65005)
+```text
 hostname Leaf-02
 !
 interface Ethernet1
@@ -365,8 +370,9 @@ router bgp 65005
     bfd
     password MySecretKey123
     address-family ipv4
-4.7. Leaf-03 (Arista vEOS, AS 65006)
-text
+```
+### 4.7. Leaf-03 (Arista vEOS, AS 65006)
+```text
 hostname Leaf-03
 !
 interface Ethernet1
@@ -404,19 +410,21 @@ router bgp 65006
     bfd
     password MySecretKey123
     address-family ipv4
+```
 Примечания по конфигурации
 Пароль MD5 MySecretKey123 используется на всех BGP-сессиях – он должен быть одинаковым на обоих концах каждого пиринга.
 
-На Nexus 5000 команда disable-peer-as-check позволяет Super-Spine передавать маршруты между разными Spine-коммутаторами (иначе eBGP не будет анонсировать маршруты с AS, отличным от своей). Это необходимо для связности между Leaf через Super-Spine.
+На Nexus 5000 команда disable-peer-as-check позволяет Super-Spine передавать маршруты между разными Spine-коммутаторами (иначе eBGP не будет анонсировать маршруты с AS, отличным от своей). 
+Это необходимо для связности между Leaf через Super-Spine.
 
 BFD с таймерами 50 мс и множителем 3 даёт таймаут 150 мс.
 
-5. Верификация
-5.1. Проверка BGP-соседств
+## 5. Верификация
+### 5.1. Проверка BGP-соседств
 На Super-Spine (Nexus 5000)
 Команда:
 
-text
+```text
 show ip bgp summary
 Вывод:
 
@@ -427,6 +435,7 @@ Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
 10.1.1.1        4 65001      25      25       25    0    0 00:12:30        6
 10.1.1.3        4 65002      24      24       25    0    0 00:12:28        6
 10.1.1.5        4 65003      26      26       25    0    0 00:12:35        6
+```
 Пояснение полей:
 
 Параметр	Значение	Описание
@@ -439,7 +448,7 @@ State/PfxRcd	6	Количество префиксов, полученных о�
 На Leaf-01 (Arista)
 Команда:
 
-text
+```text
 show ip bgp summary
 Вывод:
 
@@ -450,17 +459,18 @@ Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
 10.1.2.0        4 65001      20      20       20    0    0 00:10:45        8
 10.1.2.6        4 65002      19      19       20    0    0 00:10:40        8
 10.1.2.12       4 65003      21      21       20    0    0 00:10:55        8
+```
 Пояснение:
 
 Параметр	Значение	Описание
 Neighbor	10.1.2.0, 10.1.2.6, 10.1.2.12	IP-адреса Spine-01, Spine-02, Spine-03 соответственно
 AS	65001, 65002, 65003	AS каждого Spine
 State/PfxRcd	8	Количество полученных префиксов (включая маршруты до Super-Spine, других Spine и других Leaf)
-5.2. Проверка BFD-сессий
+### 5.2. Проверка BFD-сессий
 На Super-Spine (Nexus 5000)
 Команда:
 
-text
+```text
 show bfd neighbors
 Вывод:
 
@@ -469,6 +479,7 @@ OurAddr      NeighAddr    LD/RD         RH/RS     Holdown(mult)    State       I
 10.1.1.0     10.1.1.1     1090519041/0  Up        0(3)             Up          Eth2/1
 10.1.1.2     10.1.1.3     1090519042/0  Up        0(3)             Up          Eth2/2
 10.1.1.4     10.1.1.5     1090519043/0  Up        0(3)             Up          Eth2/3
+```
 Пояснение:
 
 Параметр	Значение	Описание
@@ -479,7 +490,7 @@ Int	Eth2/1, Eth2/2, Eth2/3	Интерфейс, на котором устано�
 На Spine-01
 Команда:
 
-text
+```text
 show bfd neighbors
 Вывод:
 
@@ -490,11 +501,12 @@ OurAddr      NeighAddr    State       Int
 10.1.2.2     10.1.2.3     Up          Eth3
 10.1.2.4     10.1.2.5     Up          Eth4
 Все сессии должны быть в состоянии Up.
+```
 
-5.3. Проверка таблицы маршрутизации на Leaf-01
+### 5.3. Проверка таблицы маршрутизации на Leaf-01
 Команда:
 
-text
+```text
 show ip route bgp
 Вывод:
 
@@ -507,6 +519,7 @@ B        10.0.2.1/32 [20/0] via 10.1.2.6, Ethernet2
 B        10.0.3.1/32 [20/0] via 10.1.2.12, Ethernet3
 B        10.0.5.1/32 [20/0] via 10.1.2.0, Ethernet1
 B        10.0.6.1/32 [20/0] via 10.1.2.0, Ethernet1
+```
 Пояснение:
 
 Параметр	Значение	Описание
@@ -520,18 +533,20 @@ Next Hop	10.1.2.0, 10.1.2.6, 10.1.2.12	IP-адрес следующего пер
 Интерфейс	Ethernet1, Ethernet2, Ethernet3	Выходной интерфейс
 Leaf-01 знает маршруты до всех устройств в Underlay-сети.
 
-5.4. Проверка связности между Loopback-адресами
+### 5.4. Проверка связности между Loopback-адресами
 С Leaf-01 на Super-Spine
 Команда:
 
-text
+```text
 ping 10.0.0.1 source 10.0.4.1
+```
 Результат:
 
-text
+```text
 !!!!!
 Success rate is 100 percent (5/5)
 С Leaf-01 на Leaf-02
+```
 Команда:
 
 text
