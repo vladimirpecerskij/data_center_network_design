@@ -242,7 +242,7 @@ router bgp 65002
     password MySecretKey123
     address-family ipv4
 ```
-###4.4. Spine-03 (Arista vEOS, AS 65003)
+### 4.4. Spine-03 (Arista vEOS, AS 65003)
 ```text
 hostname Spine-03
 !
@@ -549,7 +549,7 @@ Success rate is 100 percent (5/5)
 ```
 Команда:
 
-text
+```text
 ping 10.0.5.1 source 10.0.4.1
 Результат:
 
@@ -576,7 +576,8 @@ ping 10.0.3.1 source 10.0.1.1
 text
 !!!!!
 Success rate is 100 percent (5/5)
-6. Заключение
+```
+## 6. Заключение
 В ходе работы настроена Underlay-сеть фабрики CLOS на основе eBGP с использованием:
 
 Super-Spine (Cisco Nexus 5000) и трёх Spine (Arista vEOS) + трёх Leaf (Arista vEOS).
