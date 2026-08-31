@@ -75,7 +75,7 @@ Underlay-сеть уже настроена с использованием eBGP
 
 На Super-Spine необходимо включить поддержку адресного семейства EVPN и настроить Route Reflector для Spine.
 
-```text
+```
 hostname NEXUS-5000
 !
 feature bgp
@@ -98,12 +98,14 @@ router bgp 65000
   neighbor 10.1.1.5 remote-as 65003
     address-family l2vpn evpn
       route-reflector-client
-Примечание: Команда retain route-target all гарантирует, что Super-Spine будет передавать все EVPN-маршруты между Route Reflector-клиентами, даже если они не соответствуют локальным route-target.
 ```
+Примечание: Команда retain route-target all гарантирует, что Super-Spine будет передавать все EVPN-маршруты между Route Reflector-клиентами, даже если они не соответствуют локальным route-target.
+
 ### 4.2. Конфигурация Spine (Arista vEOS)
 Каждый Spine должен выступать в роли Route Reflector для Leaf-коммутаторов. Покажем на примере Spine-01 (для Spine-02 и Spine-03 адреса соседей меняются).
 ```
 Spine-01 (AS 65001)
+```
 text
 hostname Spine-01
 !
@@ -120,7 +122,8 @@ router bgp 65001
 ```
 
 Spine-02 (AS 65002)
-```text
+```
+text
 hostname Spine-02
 !
 router bgp 65002
@@ -151,10 +154,12 @@ router bgp 65003
     neighbor 10.1.2.17 route-reflector-client
 ```
 ### 4.3. Конфигурация Leaf (Arista vEOS)
-На каждом Leaf настраивается VXLAN, VLAN, Anycast Gateway и EVPN. Приведём полную конфигурацию для Leaf-01, для Leaf-02 и Leaf-03 меняются только номера AS, Loopback-адреса и IP-адреса соседей (они указаны в таблице 3.1).
+На каждом Leaf настраивается VXLAN, VLAN, Anycast Gateway и EVPN. Приведём полную конфигурацию для Leaf-01, для Leaf-02 и Leaf-03 меняются только номера AS,
+Loopback-адреса и IP-адреса соседей (они указаны в таблице 3.1).
 
 Leaf-01 (AS 65004, Loopback 10.0.4.1)
-```text
+```
+text
 hostname Leaf-01
 !
 vlan 10
