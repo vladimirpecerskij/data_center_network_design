@@ -105,7 +105,6 @@ router bgp 65000
 Каждый Spine должен выступать в роли Route Reflector для Leaf-коммутаторов. Покажем на примере Spine-01 (для Spine-02 и Spine-03 адреса соседей меняются).
 ```
 Spine-01 (AS 65001)
-```
 text
 hostname Spine-01
 !
@@ -121,8 +120,8 @@ router bgp 65001
     neighbor 10.1.2.5 route-reflector-client
 ```
 
-Spine-02 (AS 65002)
 ```
+Spine-02 (AS 65002)
 text
 hostname Spine-02
 !
@@ -137,8 +136,9 @@ router bgp 65002
     neighbor 10.1.2.11 activate
     neighbor 10.1.2.11 route-reflector-client
 ```
-Spine-03 (AS 65003)
 ```
+Spine-03 (AS 65003)
+
 text
 hostname Spine-03
 !
@@ -156,9 +156,8 @@ router bgp 65003
 ### 4.3. Конфигурация Leaf (Arista vEOS)
 На каждом Leaf настраивается VXLAN, VLAN, Anycast Gateway и EVPN. Приведём полную конфигурацию для Leaf-01, для Leaf-02 и Leaf-03 меняются только номера AS,
 Loopback-адреса и IP-адреса соседей (они указаны в таблице 3.1).
-
-Leaf-01 (AS 65004, Loopback 10.0.4.1)
 ```
+Leaf-01 (AS 65004, Loopback 10.0.4.1)
 text
 hostname Leaf-01
 !
@@ -193,9 +192,9 @@ evpn
     rd auto
     route-target import auto
     route-target export auto
+```
+```
 Leaf-02 (AS 65005, Loopback 10.0.5.1)
-```
-```
 hostname Leaf-02
 !
 vlan 10
@@ -230,9 +229,9 @@ evpn
     route-target import auto
     route-target export auto
 ```
-    
+```    
 Leaf-03 (AS 65006, Loopback 10.0.6.1)
-```
+
 text
 hostname Leaf-03
 !
@@ -278,8 +277,8 @@ BGP-соседи для EVPN активируются с помощью activate
 
 ## 5. Верификация
 ### 5.1. Проверка BGP EVPN-сессий
-Команда (на любом Leaf):
 ```
+Команда (на любом Leaf):
 text
 show bgp evpn summary
 Пример вывода на Leaf-01:
@@ -303,8 +302,7 @@ State	Должно быть Estab (установлена)
 PfxRcd	Количество полученных EVPN-маршрутов (как минимум 2 – MAC+IP)
 
 ### 5.2. Проверка таблицы MAC-адресов в VXLAN
-Команда (на любом Leaf):
-```
+```Команда (на любом Leaf):
 text
 show vxlan address-table
 Пример вывода на Leaf-01:
@@ -333,10 +331,10 @@ show ip route
 В таблице должен присутствовать маршрут до подсети 172.16.10.0/24 через интерфейс Vlan10 (connected).
 ```
 
-## 5.4. Проверка связности между хостами
+### 5.4. Проверка связности между хостами
+```
 С Host-1 (подключён к Leaf-01) на Host-2 (Leaf-02):
-
-```text
+text
 Host-1# ping 172.16.10.12
 !!!!!
 Success rate is 100 percent (5/5)
