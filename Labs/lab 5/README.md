@@ -268,12 +268,7 @@ evpn
     route-target export auto
 ```
 Примечания по конфигурации:
-
-Команда ip address virtual на SVI создаёт Anycast Gateway – один и тот же IP-адрес на всех Leaf.
-
-В разделе evpn для VNI 10100 используется автоматическое формирование Route Distinguisher (rd auto) и Route Target (route-target auto), что упрощает конфигурацию.
-
-BGP-соседи для EVPN активируются с помощью activate в адресном семействе.
+Команда ip address virtual на SVI создаёт Anycast Gateway – один и тот же IP-адрес на всех Leaf.В разделе evpn для VNI 10100 используется автоматическое формирование Route Distinguisher (rd auto) и Route Target (route-target auto), что упрощает конфигурацию.BGP-соседи для EVPN активируются с помощью activate в адресном семействе.
 
 ## 5. Верификация
 ### 5.1. Проверка BGP EVPN-сессий
