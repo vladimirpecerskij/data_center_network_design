@@ -12,7 +12,7 @@
 
 - **Super-Spine (уровень 1):** 1 коммутатор **Cisco Nexus 5000** (образ NX-OS) — центральный маршрутизатор.
 - **Spine (уровень 2):** 3 коммутатора **Arista vEOS** (Spine-01, Spine-02, Spine-03).
-- **Leaf (уровень 3):** 3 коммутатора **Arista vEOS** (Leaf-01, Leaf-02, Leaf-03) — каждый подключён к каждому Spine (полносвязная топология).
+- **Leaf (уровень 3):** 3 коммутатора **Cisco vIOS** (Leaf-01, Leaf-02, Leaf-03) — каждый подключён к каждому Spine (полносвязная топология).
 
 ### Схема подключений
 
@@ -48,6 +48,8 @@
    - **MD5-аутентификация** для защиты BGP-сессий.
 5. **Верификация.** Проверить установку BGP-соседств, BFD-сессий, маршруты в таблицах и связность между всеми Loopback-адресами.
 6. **Документирование.** Зафиксировать все конфигурации и результаты проверки.
+7. **Настройка ECMP:**
+   - Включены `maximum-paths` на всех устройствах для использования нескольких равнозначных путей.
 
 ---
 
@@ -127,6 +129,7 @@ interface Loopback0
 router bgp 65000
   router-id 10.0.0.1
   address-family ipv4 unicast
+   maximum-paths 3
     redistribute connected
   neighbor 10.1.1.1 remote-as 65001
     bfd
@@ -174,7 +177,9 @@ interface Loopback0
 !
 router bgp 65001
   router-id 10.0.1.1
+maximum-paths 3 ecmp 3
   address-family ipv4
+    maximum-paths 3
     redistribute connected
   neighbor 10.1.1.0 remote-as 65000
     bfd
@@ -223,7 +228,9 @@ interface Loopback0
 !
 router bgp 65002
   router-id 10.0.2.1
+maximum-paths 3 ecmp 3
   address-family ipv4
+ maximum-paths 3
     redistribute connected
   neighbor 10.1.1.2 remote-as 65000
     bfd
@@ -272,7 +279,9 @@ interface Loopback0
 !
 router bgp 65003
   router-id 10.0.3.1
-  address-family ipv4
+maximum-paths 3 ecmp 3
+address-family ipv4
+maximum-paths 3
     redistribute connected
   neighbor 10.1.1.4 remote-as 65000
     bfd
@@ -316,6 +325,7 @@ interface Loopback0
 !
 router bgp 65004
   router-id 10.0.4.1
+maximum-paths 3
   address-family ipv4
     redistribute connected
   neighbor 10.1.2.0 remote-as 65001
@@ -356,6 +366,7 @@ interface Loopback0
 !
 router bgp 65005
   router-id 10.0.5.1
+maximum-paths 3
   address-family ipv4
     redistribute connected
   neighbor 10.1.2.2 remote-as 65001
@@ -396,6 +407,7 @@ interface Loopback0
 !
 router bgp 65006
   router-id 10.0.6.1
+maximum-paths 3
   address-family ipv4
     redistribute connected
   neighbor 10.1.2.4 remote-as 65001
