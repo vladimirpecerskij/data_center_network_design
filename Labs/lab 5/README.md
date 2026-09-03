@@ -412,7 +412,7 @@ router bgp 65003
       activate
       route-reflector-client
 ```
-### 4.3. Конфигурация Leaf (Arista vEOS)
+### 4.3. Конфигурация Leaf (Сшысщ vIOS)
 На каждом Leaf настраивается VXLAN, VLAN, Anycast Gateway и EVPN. Приведём полную конфигурацию для Leaf-01, для Leaf-02 и Leaf-03 меняются только номера AS,
 Loopback-адреса и IP-адреса соседей (они указаны в таблице 3.1).
 ```
@@ -420,73 +420,244 @@ Leaf-01 (AS 65004, Loopback 10.0.4.1)
 text
 hostname Leaf-01
 !
+no ip domain-lookup
+!
+! --- L2 Part (Access & Gateway) ---
 vlan 10
-   name RED_ZONE
+ name RED_ZONE
 !
 interface Ethernet3
-   description Host-1
-   switchport access vlan 10
-   no shutdown
+ description Host-1
+ switchport mode access
+ switchport access vlan 10
+ no shutdown
 !
 interface Vlan10
-   description Gateway for VLAN 10
-   ip address virtual 172.16.10.1/24
-   no shutdown
+ description Gateway for VLAN 10
+ ip address 172.16.10.1 255.255.255.0
+ no shutdown
 !
-interface Vxlan1
-   vxlan source-interface Loopback0
-   vxlan udp-port 4789
-   vxlan vlan 10 vni 10100
+
+! --- Control Plane & Transport ---
+! Включаем необходимые фичи
+feature bgp
+feature bfd
 !
+! Loopback для источника туннелей и Router-ID
+interface Loopback0
+ ip address 10.0.4.1 255.255.255.255
+ no shutdown
+!
+
+! --- Uplinks to Spine (L3 Links with BFD) ---
+! Eth1 -> Spine-01
+interface Ethernet1
+ no switchport
+ ip address 10.1.2.1 255.255.255.254
+ bfd interval 50 min_rx 50 multiplier 3
+ no shutdown
+!
+! Eth2 -> Spine-02
+interface Ethernet2
+ no switchport
+ ip address 10.1.2.7 255.255.255.254
+ bfd interval 50 min_rx 50 multiplier 3
+ no shutdown
+!
+! Eth4 -> Spine-03 (Eth3 занят под Host, поэтому используем Eth4)
+interface Ethernet4
+ no switchport
+ ip address 10.1.2.13 255.255.255.254
+ bfd interval 50 min_rx 50 multiplier 3
+ no shutdown
+!
+
+! --- VXLAN / NVE Configuration (Cisco Way) ---
+! Создаем интерфейс NVE (аналог Vxlan1)
+interface nve1
+ host-reachability protocol bgp
+ source-interface Loopback0
+ !
+ ! Маппинг VNI 10100 на VLAN 10
+ member vni 10100
+  ingress replication protocol static
+  ! Здесь можно добавить IP адреса Spine для репликации, 
+  ! но при работающем EVPN BGP это не обязательно.
+  ! Если нужна статическая репликация для тестов, раскомментируй строки ниже:
+  ! peer-ip 10.0.1.1
+  ! peer-ip 10.0.2.1
+  ! peer-ip 10.0.3.1
+!
+
+! --- BGP Configuration (IPv4 + EVPN) ---
 router bgp 65004
-  router-id 10.0.4.1
+ bgp router-id 10.0.4.1
+ bgp log-neighbor-changes
+ 
+ ! Глобальная активация EVPN
+ l2vpn evpn
+ 
+ ! IPv4 Unicast: ECMP + Redistribution
+ address-family ipv4 unicast
+  maximum-paths 3                  <-- ECMP на Cisco
+  redistribute connected
+ !
+ 
+ ! EVPN Address Family
+ address-family l2vpn evpn
+  retain route-target all
+ !
+
+ ! Neighbor 1: Spine-01 (10.1.2.0)
+ neighbor 10.1.2.0 remote-as 65001
+  bfd                             <-- BFD
+  password 0 MySecretKey123       <-- MD5 Password (0 обязателен!)
   !
-  address-family evpn
-    neighbor 10.1.2.0 activate   ! Spine-01
-    neighbor 10.1.2.6 activate   ! Spine-02
-    neighbor 10.1.2.12 activate  ! Spine-03
-!
-evpn
-  vni 10100 l2
-    rd auto
-    route-target import auto
-    route-target export auto
+  address-family ipv4 unicast
+   send-community
+  !
+  address-family l2vpn evpn
+   route-reflector-client
+  !
+ !
+ ! Neighbor 2: Spine-02 (10.1.2.6)
+ neighbor 10.1.2.6 remote-as 65002
+  bfd
+  password 0 MySecretKey123
+  !
+  address-family ipv4 unicast
+   send-community
+  !
+  address-family l2vpn evpn
+   route-reflector-client
+  !
+ !
+ ! Neighbor 3: Spine-03 (10.1.2.12)
+ neighbor 10.1.2.12 remote-as 65003
+  bfd
+  password 0 MySecretKey123
+  !
+  address-family ipv4 unicast
+   send-community
+  !
+  address-family l2vpn evpn
+   route-reflector-client
+  !
 ```
 ```
 Leaf-02 (AS 65005, Loopback 10.0.5.1)
 hostname Leaf-02
 !
+no ip domain-lookup
+!
+! --- L2 Part (Access & Gateway) ---
 vlan 10
-   name RED_ZONE
+ name RED_ZONE
 !
 interface Ethernet3
-   description Host-2
-   switchport access vlan 10
-   no shutdown
+ description Host-1
+ switchport mode access
+ switchport access vlan 10
+ no shutdown
 !
 interface Vlan10
-   description Gateway for VLAN 10
-   ip address virtual 172.16.10.1/24
-   no shutdown
+ description Gateway for VLAN 10
+ ip address 172.16.10.1 255.255.255.0
+ no shutdown
 !
-interface Vxlan1
-   vxlan source-interface Loopback0
-   vxlan udp-port 4789
-   vxlan vlan 10 vni 10100
+
+! --- Control Plane & Transport ---
+feature bgp
+feature bfd
 !
+interface Loopback0
+ ip address 10.0.5.1 255.255.255.255
+ no shutdown
+!
+
+! --- Uplinks to Spine (L3 Links with BFD) ---
+! Eth1 -> Spine-01
+interface Ethernet1
+ no switchport
+ ip address 10.1.2.3 255.255.255.254
+ bfd interval 50 min_rx 50 multiplier 3
+ no shutdown
+!
+! Eth2 -> Spine-02
+interface Ethernet2
+ no switchport
+ ip address 10.1.2.9 255.255.255.254
+ bfd interval 50 min_rx 50 multiplier 3
+ no shutdown
+!
+! Eth4 -> Spine-03 (Eth3 занят под Host)
+interface Ethernet4
+ no switchport
+ ip address 10.1.2.15 255.255.255.254
+ bfd interval 50 min_rx 50 multiplier 3
+ no shutdown
+!
+
+! --- VXLAN / NVE Configuration ---
+interface nve1
+ host-reachability protocol bgp
+ source-interface Loopback0
+ !
+ member vni 10100
+  ingress replication protocol static
+!
+
+! --- BGP Configuration (IPv4 + EVPN) ---
 router bgp 65005
-  router-id 10.0.5.1
+ bgp router-id 10.0.5.1
+ bgp log-neighbor-changes
+ 
+ l2vpn evpn
+ 
+ address-family ipv4 unicast
+  maximum-paths 3
+  redistribute connected
+ !
+ 
+ address-family l2vpn evpn
+  retain route-target all
+ !
+
+ ! Neighbor 1: Spine-01 (10.1.2.2)
+ neighbor 10.1.2.2 remote-as 65001
+  bfd
+  password 0 MySecretKey123
   !
-  address-family evpn
-    neighbor 10.1.2.2 activate   ! Spine-01
-    neighbor 10.1.2.8 activate   ! Spine-02
-    neighbor 10.1.2.14 activate  ! Spine-03
-!
-evpn
-  vni 10100 l2
-    rd auto
-    route-target import auto
-    route-target export auto
+  address-family ipv4 unicast
+   send-community
+  !
+  address-family l2vpn evpn
+   route-reflector-client
+  !
+ !
+ ! Neighbor 2: Spine-02 (10.1.2.8)
+ neighbor 10.1.2.8 remote-as 65002
+  bfd
+  password 0 MySecretKey123
+  !
+  address-family ipv4 unicast
+   send-community
+  !
+  address-family l2vpn evpn
+   route-reflector-client
+  !
+ !
+ ! Neighbor 3: Spine-03 (10.1.2.14)
+ neighbor 10.1.2.14 remote-as 65003
+  bfd
+  password 0 MySecretKey123
+  !
+  address-family ipv4 unicast
+   send-community
+  !
+  address-family l2vpn evpn
+   route-reflector-client
+  !
 ```
 ```    
 Leaf-03 (AS 65006, Loopback 10.0.6.1)
@@ -494,37 +665,116 @@ Leaf-03 (AS 65006, Loopback 10.0.6.1)
 text
 hostname Leaf-03
 !
+no ip domain-lookup
+!
+! --- L2 Part (Access & Gateway) ---
 vlan 10
-   name RED_ZONE
+ name RED_ZONE
 !
 interface Ethernet3
-   description Host-3
-   switchport access vlan 10
-   no shutdown
+ description Host-1
+ switchport mode access
+ switchport access vlan 10
+ no shutdown
 !
 interface Vlan10
-   description Gateway for VLAN 10
-   ip address virtual 172.16.10.1/24
-   no shutdown
+ description Gateway for VLAN 10
+ ip address 172.16.10.1 255.255.255.0
+ no shutdown
 !
-interface Vxlan1
-   vxlan source-interface Loopback0
-   vxlan udp-port 4789
-   vxlan vlan 10 vni 10100
+
+! --- Control Plane & Transport ---
+feature bgp
+feature bfd
 !
+interface Loopback0
+ ip address 10.0.6.1 255.255.255.255
+ no shutdown
+!
+
+! --- Uplinks to Spine (L3 Links with BFD) ---
+! Eth1 -> Spine-01
+interface Ethernet1
+ no switchport
+ ip address 10.1.2.5 255.255.255.254
+ bfd interval 50 min_rx 50 multiplier 3
+ no shutdown
+!
+! Eth2 -> Spine-02
+interface Ethernet2
+ no switchport
+ ip address 10.1.2.11 255.255.255.254
+ bfd interval 50 min_rx 50 multiplier 3
+ no shutdown
+!
+! Eth4 -> Spine-03 (Eth3 занят под Host)
+interface Ethernet4
+ no switchport
+ ip address 10.1.2.17 255.255.255.254
+ bfd interval 50 min_rx 50 multiplier 3
+ no shutdown
+!
+
+! --- VXLAN / NVE Configuration ---
+interface nve1
+ host-reachability protocol bgp
+ source-interface Loopback0
+ !
+ member vni 10100
+  ingress replication protocol static
+!
+
+! --- BGP Configuration (IPv4 + EVPN) ---
 router bgp 65006
-  router-id 10.0.6.1
+ bgp router-id 10.0.6.1
+ bgp log-neighbor-changes
+ 
+ l2vpn evpn
+ 
+ address-family ipv4 unicast
+  maximum-paths 3
+  redistribute connected
+ !
+ 
+ address-family l2vpn evpn
+  retain route-target all
+ !
+
+ ! Neighbor 1: Spine-01 (10.1.2.4)
+ neighbor 10.1.2.4 remote-as 65001
+  bfd
+  password 0 MySecretKey123
   !
-  address-family evpn
-    neighbor 10.1.2.4 activate   ! Spine-01
-    neighbor 10.1.2.10 activate  ! Spine-02
-    neighbor 10.1.2.16 activate  ! Spine-03
-!
-evpn
-  vni 10100 l2
-    rd auto
-    route-target import auto
-    route-target export auto
+  address-family ipv4 unicast
+   send-community
+  !
+  address-family l2vpn evpn
+   route-reflector-client
+  !
+ !
+ ! Neighbor 2: Spine-02 (10.1.2.10)
+ neighbor 10.1.2.10 remote-as 65002
+  bfd
+  password 0 MySecretKey123
+  !
+  address-family ipv4 unicast
+   send-community
+  !
+  address-family l2vpn evpn
+   route-reflector-client
+  !
+ !
+ ! Neighbor 3: Spine-03 (10.1.2.16)
+ neighbor 10.1.2.16 remote-as 65003
+  bfd
+  password 0 MySecretKey123
+  !
+  address-family ipv4 unicast
+   send-community
+  !
+  address-family l2vpn evpn
+   route-reflector-client
+  !
 ```
 Примечания по конфигурации:
 Команда ip address virtual на SVI создаёт Anycast Gateway – один и тот же IP-адрес на всех Leaf.В разделе evpn для VNI 10100 используется автоматическое формирование Route Distinguisher (rd auto) и Route Target (route-target auto), что упрощает конфигурацию.BGP-соседи для EVPN активируются с помощью activate в адресном семействе.
@@ -597,7 +847,7 @@ Success rate is 100 percent (5/5)
 ```
 
 ## 6. Заключение
-В ходе работы настроена Overlay-сеть на основе VXLAN EVPN для L2-связанности клиентов:Использована существующая Underlay-сеть с eBGP, BFD и MD5.
+В ходе работы настроена Overlay-сеть на основе VXLAN EVPN для L2-связанности клиентов:Использована существующая Underlay-сеть с eBGP, BFD,MD5 и ECMP.
 На Spine настроены Route Reflector'ы для адресного семейства EVPN.На Leaf созданы VTEP, L2 VNI (10100), VLAN 10 и Anycast Gateway (172.16.10.1).
 Клиентские порты (Eth3) переведены в access-режим.Проверена связность между хостами, подключёнными к разным Leaf, через VXLAN-туннели.
 Все BGP EVPN-сессии установлены, MAC-адреса изучаются через контрольную плоскость, L2-трафик между клиентами проходит без потерь.
