@@ -83,21 +83,65 @@ hostname NEXUS-5000
 feature bgp
 feature bfd
 !
+interface Ethernet2/1
+  no switchport
+  ip address 10.1.1.0/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Ethernet2/2
+  no switchport
+  ip address 10.1.1.2/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Ethernet2/3
+  no switchport
+  ip address 10.1.1.4/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Loopback0
+  ip address 10.0.0.1/32
+!
 router bgp 65000
   router-id 10.0.0.1
+  
+  address-family ipv4 unicast
+    maximum-paths 3                   
+    redistribute connected
   !
+  
   address-family l2vpn evpn
     retain route-target all
   !
+
   neighbor 10.1.1.1 remote-as 65001
+    bfd                              
+    password 0 MySecretKey123
+    address-family ipv4 unicast
+      disable-peer-as-check
+    !
     address-family l2vpn evpn
       route-reflector-client
   !
+
   neighbor 10.1.1.3 remote-as 65002
+    bfd
+    password 0 MySecretKey123
+    address-family ipv4 unicast
+      disable-peer-as-check
+    !
     address-family l2vpn evpn
       route-reflector-client
   !
+
   neighbor 10.1.1.5 remote-as 65003
+    bfd
+    password 0 MySecretKey123
+    address-family ipv4 unicast
+      disable-peer-as-check
+    !
     address-family l2vpn evpn
       route-reflector-client
 ```
@@ -110,16 +154,87 @@ Spine-01 (AS 65001)
 text
 hostname Spine-01
 !
+interface Ethernet1
+  no switchport
+  ip address 10.1.1.1/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Ethernet2
+  no switchport
+  ip address 10.1.2.0/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Ethernet3
+  no switchport
+  ip address 10.1.2.2/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Ethernet4
+  no switchport
+  ip address 10.1.2.4/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Loopback0
+  ip address 10.0.1.1/32
+!
 router bgp 65001
   router-id 10.0.1.1
+  maximum-paths 3 ecmp 3
   !
-  address-family evpn
-    neighbor 10.1.2.1 activate
-    neighbor 10.1.2.1 route-reflector-client
-    neighbor 10.1.2.3 activate
-    neighbor 10.1.2.3 route-reflector-client
-    neighbor 10.1.2.5 activate
-    neighbor 10.1.2.5 route-reflector-client
+  address-family ipv4
+    maximum-paths 3
+    redistribute connected
+  !
+  !
+  neighbor 10.1.1.0 remote-as 65000
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.1 remote-as 65004
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.3 remote-as 65005
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.5 remote-as 65006
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
 ```
 
 ```
@@ -127,16 +242,87 @@ Spine-02 (AS 65002)
 text
 hostname Spine-02
 !
+interface Ethernet1
+  no switchport
+  ip address 10.1.1.3/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Ethernet2
+  no switchport
+  ip address 10.1.2.6/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Ethernet3
+  no switchport
+  ip address 10.1.2.8/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Ethernet4
+  no switchport
+  ip address 10.1.2.10/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Loopback0
+  ip address 10.0.2.1/32
+!
 router bgp 65002
   router-id 10.0.2.1
+  maximum-paths 3 ecmp 3
   !
-  address-family evpn
-    neighbor 10.1.2.7 activate
-    neighbor 10.1.2.7 route-reflector-client
-    neighbor 10.1.2.9 activate
-    neighbor 10.1.2.9 route-reflector-client
-    neighbor 10.1.2.11 activate
-    neighbor 10.1.2.11 route-reflector-client
+  address-family ipv4
+    maximum-paths 3
+    redistribute connected
+  !
+  !
+  neighbor 10.1.1.2 remote-as 65000
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.7 remote-as 65004
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.9 remote-as 65005
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.11 remote-as 65006
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
 ```
 ```
 Spine-03 (AS 65003)
@@ -144,16 +330,87 @@ Spine-03 (AS 65003)
 text
 hostname Spine-03
 !
+interface Ethernet1
+  no switchport
+  ip address 10.1.1.5/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Ethernet2
+  no switchport
+  ip address 10.1.2.12/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Ethernet3
+  no switchport
+  ip address 10.1.2.14/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Ethernet4
+  no switchport
+  ip address 10.1.2.16/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
+!
+interface Loopback0
+  ip address 10.0.3.1/32
+!
 router bgp 65003
   router-id 10.0.3.1
+  maximum-paths 3 ecmp 3
   !
-  address-family evpn
-    neighbor 10.1.2.13 activate
-    neighbor 10.1.2.13 route-reflector-client
-    neighbor 10.1.2.15 activate
-    neighbor 10.1.2.15 route-reflector-client
-    neighbor 10.1.2.17 activate
-    neighbor 10.1.2.17 route-reflector-client
+  address-family ipv4
+    maximum-paths 3
+    redistribute connected
+  !
+  !
+  neighbor 10.1.1.4 remote-as 65000
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.13 remote-as 65004
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.15 remote-as 65005
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.17 remote-as 65006
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
 ```
 ### 4.3. Конфигурация Leaf (Arista vEOS)
 На каждом Leaf настраивается VXLAN, VLAN, Anycast Gateway и EVPN. Приведём полную конфигурацию для Leaf-01, для Leaf-02 и Leaf-03 меняются только номера AS,
