@@ -514,34 +514,64 @@ OurAddr      NeighAddr    State       Int
 ```
 
 ### 5.3. Проверка таблицы маршрутизации на Leaf-01
+
 Команда:
 
 ```text
-show ip route bgp
+Leaf-01# show ip route bgp
+```
+
 Вывод:
 
-text
-BGP routing table entries for address family IPv4
-Codes: B - BGP, O - OSPF, C - Connected, S - Static
-B        10.0.0.1/32 [20/0] via 10.1.2.0, Ethernet1
-B        10.0.1.1/32 [20/0] via 10.1.2.0, Ethernet1
-B        10.0.2.1/32 [20/0] via 10.1.2.6, Ethernet2
-B        10.0.3.1/32 [20/0] via 10.1.2.12, Ethernet3
-B        10.0.5.1/32 [20/0] via 10.1.2.0, Ethernet1
-B        10.0.6.1/32 [20/0] via 10.1.2.0, Ethernet1
-```
-Пояснение:
+```text
+VRF: default
+Codes: C - connected, S - static, K - kernel,
+       O - OSPF, IA - OSPF inter area, E1 - OSPF external type 1,
+       E2 - OSPF external type 2, N1 - OSPF NSSA external type 1,
+       N2 - OSPF NSSA external type2, B - Other BGP Routes,
+       B I - iBGP, B E - eBGP, R - RIP, I L1 - IS-IS level 1,
+       I L2 - IS-IS level 2, O3 - OSPFv3, A B - BGP Aggregate,
+       A O - OSPF Summary, NG - Nexthop Group Static Route,
+       V - VXLAN Control Service, M - Martian,
+       DH - DHCP client installed default route,
+       DP - Dynamic Policy Route, L - VRF Leaked,
+       G  - gRIBI, RC - Route Cache Route
 
-Параметр	Значение	Описание
-Маршрут	10.0.0.1/32	Loopback Super-Spine
-Маршрут	10.0.1.1/32	Loopback Spine-01
-Маршрут	10.0.2.1/32	Loopback Spine-02
-Маршрут	10.0.3.1/32	Loopback Spine-03
-Маршрут	10.0.5.1/32	Loopback Leaf-02
-Маршрут	10.0.6.1/32	Loopback Leaf-03
-Next Hop	10.1.2.0, 10.1.2.6, 10.1.2.12	IP-адрес следующего перехода (Spine)
-Интерфейс	Ethernet1, Ethernet2, Ethernet3	Выходной интерфейс
-Leaf-01 знает маршруты до всех устройств в Underlay-сети.
+ B E      10.0.0.1/32 [200/0] via 10.1.2.0, Ethernet1
+                              via 10.1.2.6, Ethernet2
+                              via 10.1.2.12, Ethernet3
+ B E      10.0.1.1/32 [200/0] via 10.1.2.0, Ethernet1
+ B E      10.0.2.1/32 [200/0] via 10.1.2.6, Ethernet2
+ B E      10.0.3.1/32 [200/0] via 10.1.2.12, Ethernet3
+ B E      10.0.5.1/32 [200/0] via 10.1.2.0, Ethernet1
+                              via 10.1.2.6, Ethernet2
+                              via 10.1.2.12, Ethernet3
+ B E      10.0.6.1/32 [200/0] via 10.1.2.0, Ethernet1
+                              via 10.1.2.6, Ethernet2
+                              via 10.1.2.12, Ethernet3
+ B E      10.1.1.0/31 [200/0] via 10.1.2.0, Ethernet1
+ B E      10.1.1.2/31 [200/0] via 10.1.2.6, Ethernet2
+ B E      10.1.1.4/31 [200/0] via 10.1.2.12, Ethernet3
+ B E      10.1.2.2/31 [200/0] via 10.1.2.0, Ethernet1
+ B E      10.1.2.4/31 [200/0] via 10.1.2.0, Ethernet1
+ B E      10.1.2.8/31 [200/0] via 10.1.2.6, Ethernet2
+ B E      10.1.2.10/31 [200/0] via 10.1.2.6, Ethernet2
+ B E      10.1.2.14/31 [200/0] via 10.1.2.12, Ethernet3
+ B E      10.1.2.16/31 [200/0] via 10.1.2.12, Ethernet3
+```
+
+**Пояснение параметров и демонстрация ECMP:**
+
+| Маршрут назначения | Описание узла | Next Hop (Куда шлем трафик) | Интерфейсы | Примечание по ECMP |
+| :--- | :--- | :--- | :--- | :--- |
+| **10.0.0.1/32** | Loopback0 Super-Spine (Nexus) | 10.1.2.0<br>10.1.2.6<br>10.1.2.12 | Ethernet1<br>Ethernet2<br>Ethernet3 | **ECMP активен (3 пути).** Трафик до ядра балансируется через все три Spine одновременно. |
+| **10.0.1.1/32** | Loopback0 Spine-01 | 10.1.2.0 | Ethernet1 | Прямой маршрут до Spine-01. |
+| **10.0.2.1/32** | Loopback0 Spine-02 | 10.1.2.6 | Ethernet2 | Прямой маршрут до Spine-02. |
+| **10.0.3.1/32** | Loopback0 Spine-03 | 10.1.2.12 | Ethernet3 | Прямой маршрут до Spine-03. |
+| **10.0.5.1/32** | Loopback0 Leaf-02 | 10.1.2.0<br>10.1.2.6<br>10.1.2.12 | Ethernet1<br>Ethernet2<br>Ethernet3 | **ECMP активен (3 пути).** Пакеты до соседа Leaf-02 распределяются по всей Spine-фабрике. |
+| **10.0.6.1/32** | Loopback0 Leaf-03 | 10.1.2.0<br>10.1.2.6<br>10.1.2.12 | Ethernet1<br>Ethernet2<br>Ethernet3 | **ECMP активен (3 пути).** Пакеты до соседа Leaf-03 распределяются по всей Spine-фабрике. |
+
+**Вывод:** Тест показывает, что коммутатор `Leaf-01` успешно построил полную карту сети Underlay. Наличие ровно трех путей `via` к целевым Loopback-адресам других Leaf и Super-Spine наглядно доказывает корректность работы механизма **ECMP (maximum-paths 3)** в CLOS-фабрике на операционной системе Arista EOS.
 
 ### 5.4. Проверка связности между Loopback-адресами
 С Leaf-01 на Super-Spine
