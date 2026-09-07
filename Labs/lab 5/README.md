@@ -70,9 +70,6 @@ Underlay-сеть уже настроена с использованием eBGP
 | Host-3 | Leaf-03 | Eth3 | 172.16.10.13/24 |
 
 ---
-
-## 4. Конфигурации устройств
-
 ### 4.1. Super-Spine (Cisco Nexus 5000)
 
 На Super-Spine необходимо включить поддержку адресного семейства EVPN и настроить Route Reflector для Spine.
@@ -147,9 +144,13 @@ text
 
 Примечание: Команда `retain route-target all` гарантирует, что Super-Spine будет передавать все EVPN-маршруты между Route Reflector-клиентами, даже если они не соответствуют локальным route-target.
 
+---
+
 ### 4.2. Конфигурация Spine (Arista vEOS)
+
 Каждый Spine должен выступать в роли Route Reflector для Leaf-коммутаторов. Покажем на примере Spine-01 (для Spine-02 и Spine-03 адреса соседей меняются).
-Spine-01 (AS 65001)
+
+**Spine-01 (AS 65001)**
 hostname Spine-01
 !
 interface Ethernet1
@@ -235,7 +236,8 @@ activate
 route-reflector-client
 
 text
-Spine-02 (AS 65002)
+
+**Spine-02 (AS 65002)**
 hostname Spine-02
 !
 interface Ethernet1
@@ -321,7 +323,8 @@ activate
 route-reflector-client
 
 text
-Spine-03 (AS 65003)
+
+**Spine-03 (AS 65003)**
 hostname Spine-03
 !
 interface Ethernet1
@@ -408,10 +411,13 @@ route-reflector-client
 
 text
 
+---
+
 ### 4.3. Конфигурация Leaf (Arista vEOS)
 
 На каждом Leaf настраивается VXLAN, VLAN, Anycast Gateway и EVPN. Приведём полную конфигурацию для Leaf-01, для Leaf-02 и Leaf-03 меняются только номера AS, Loopback-адреса и IP-адреса соседей (они указаны в таблице 3.1).
-Leaf-01 (AS 65004, Loopback 10.0.4.1)
+
+**Leaf-01 (AS 65004, Loopback 10.0.4.1)**
 hostname Leaf-01
 !
 ip routing
@@ -484,7 +490,8 @@ network 10.0.4.1/32
 network 172.16.10.0/24
 
 text
-Leaf-02 (AS 65005, Loopback 10.0.5.1)
+
+**Leaf-02 (AS 65005, Loopback 10.0.5.1)**
 hostname Leaf-02
 !
 ip routing
@@ -557,7 +564,8 @@ network 10.0.5.1/32
 network 172.16.10.0/24
 
 text
-Leaf-03 (AS 65006, Loopback 10.0.6.1)
+
+**Leaf-03 (AS 65006, Loopback 10.0.6.1)**
 hostname Leaf-03
 !
 ip routing
@@ -632,6 +640,7 @@ network 172.16.10.0/24
 text
 
 **Примечания по конфигурации:**
+
 - Команда `ip address virtual` на SVI создаёт Anycast Gateway – один и тот же IP-адрес на всех Leaf.
 - В интерфейсе `Vxlan1` настроено сопоставление VLAN 10 с VNI 10100.
 - В BGP в адресном семействе `evpn` соседи активируются с помощью команды `activate`.
@@ -642,10 +651,12 @@ text
 ## 5. Верификация
 
 ### 5.1. Проверка BGP EVPN-сессий
+
 Команда (на любом Leaf):
 show bgp evpn summary
 
 text
+
 Пример вывода на Leaf-01:
 BGP summary information for VRF default
 Router identifier 10.0.4.1, local AS number 65004
@@ -656,19 +667,25 @@ Neighbor V AS MsgRcvd MsgSent InQ OutQ Up/Down State PfxRcd
 10.1.2.12 4 65003 126 124 0 0 01:02:40 Estab 2
 
 text
+
 **Пояснение полей:**
-- `Neighbor` — IP-адрес соседа (Spine).
-- `AS` — Номер AS соседа.
-- `MsgRcvd / MsgSent` — Количество полученных/отправленных BGP-сообщений.
-- `Up/Down` — Время активности сессии.
-- `State` — Должно быть `Estab` (установлена).
-- `PfxRcd` — Количество полученных EVPN-маршрутов.
+
+| Параметр | Описание |
+|:---|:---|
+| **Neighbor** | IP-адрес соседа (Spine) |
+| **AS** | Номер AS соседа |
+| **MsgRcvd / MsgSent** | Количество полученных/отправленных BGP-сообщений |
+| **Up/Down** | Время активности сессии |
+| **State** | Должно быть `Estab` (установлена) |
+| **PfxRcd** | Количество полученных EVPN-маршрутов |
 
 ### 5.2. Проверка таблицы MAC-адресов в VXLAN
+
 Команда (на любом Leaf):
 show vxlan address-table
 
 text
+
 Пример вывода на Leaf-01:
 Vxlan Mac Address Table
 ================================================
@@ -678,42 +695,50 @@ VLAN VNI MAC Address Type Age Remote VTEP
 10 10100 0050.7966.6801 EVPN - 10.0.6.1
 
 text
+
 **Пояснение:**
-- `VLAN` — Локальный VLAN.
-- `VNI` — VXLAN-идентификатор.
-- `MAC Address` — MAC-адрес клиента на удалённом Leaf.
-- `Type` — `EVPN` – изучено через контрольную плоскость.
-- `Remote VTEP` — IP-адрес удалённого VTEP (Leaf).
+
+| Параметр | Описание |
+|:---|:---|
+| **VLAN** | Локальный VLAN |
+| **VNI** | VXLAN-идентификатор |
+| **MAC Address** | MAC-адрес клиента на удалённом Leaf |
+| **Type** | `EVPN` – изучено через контрольную плоскость |
+| **Remote VTEP** | IP-адрес удалённого VTEP (Leaf) |
 
 ### 5.3. Проверка таблицы маршрутизации (для Anycast Gateway)
+
 Команда (на любом Leaf):
 show ip route
 
 text
+
 В таблице должен присутствовать маршрут до подсети `172.16.10.0/24` через интерфейс Vlan10 (connected).
 
 ### 5.4. Проверка связности между хостами
+
 С Host-1 (подключён к Leaf-01) на Host-2 (Leaf-02):
 Host-1# ping 172.16.10.12
 !!!!!
 Success rate is 100 percent (5/5)
 
 text
+
 С Host-1 на Host-3 (Leaf-03):
 Host-1# ping 172.16.10.13
 !!!!!
 Success rate is 100 percent (5/5)
 
 text
+
 С Host-2 на Host-3:
 Host-2# ping 172.16.10.13
 !!!!!
 Success rate is 100 percent (5/5)
 
 text
-Если пинги проходят, значит L2-связность через VXLAN работает корректно.
 
----
+Если пинги проходят, значит L2-связность через VXLAN работает корректно.
 
 ## 6. Заключение
 
