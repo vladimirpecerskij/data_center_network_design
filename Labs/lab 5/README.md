@@ -74,6 +74,7 @@ Underlay-сеть уже настроена с использованием eBGP
 
 На Super-Spine необходимо включить поддержку адресного семейства EVPN и настроить Route Reflector для Spine.
 hostname NEXUS-5000
+```
 !
 feature bgp
 feature bfd
@@ -139,8 +140,7 @@ disable-peer-as-check
 !
 address-family l2vpn evpn
 route-reflector-client
-
-text
+```
 
 Примечание: Команда `retain route-target all` гарантирует, что Super-Spine будет передавать все EVPN-маршруты между Route Reflector-клиентами, даже если они не соответствуют локальным route-target.
 
@@ -151,6 +151,7 @@ text
 Каждый Spine должен выступать в роли Route Reflector для Leaf-коммутаторов. Покажем на примере Spine-01 (для Spine-02 и Spine-03 адреса соседей меняются).
 
 **Spine-01 (AS 65001)**
+```
 hostname Spine-01
 !
 interface Ethernet1
@@ -234,10 +235,10 @@ send-community
 address-family evpn
 activate
 route-reflector-client
-
-text
+```
 
 **Spine-02 (AS 65002)**
+```
 hostname Spine-02
 !
 interface Ethernet1
@@ -321,10 +322,10 @@ send-community
 address-family evpn
 activate
 route-reflector-client
-
-text
+```
 
 **Spine-03 (AS 65003)**
+```
 hostname Spine-03
 !
 interface Ethernet1
@@ -408,8 +409,7 @@ send-community
 address-family evpn
 activate
 route-reflector-client
-
-text
+```
 
 ---
 
@@ -418,6 +418,7 @@ text
 На каждом Leaf настраивается VXLAN, VLAN, Anycast Gateway и EVPN. Приведём полную конфигурацию для Leaf-01, для Leaf-02 и Leaf-03 меняются только номера AS, Loopback-адреса и IP-адреса соседей (они указаны в таблице 3.1).
 
 **Leaf-01 (AS 65004, Loopback 10.0.4.1)**
+```
 hostname Leaf-01
 !
 ip routing
@@ -488,10 +489,10 @@ neighbor 10.1.2.6 activate
 neighbor 10.1.2.12 activate
 network 10.0.4.1/32
 network 172.16.10.0/24
-
-text
+```
 
 **Leaf-02 (AS 65005, Loopback 10.0.5.1)**
+```
 hostname Leaf-02
 !
 ip routing
@@ -562,10 +563,10 @@ neighbor 10.1.2.8 activate
 neighbor 10.1.2.14 activate
 network 10.0.5.1/32
 network 172.16.10.0/24
-
-text
+```
 
 **Leaf-03 (AS 65006, Loopback 10.0.6.1)**
+```
 hostname Leaf-03
 !
 ip routing
@@ -636,8 +637,7 @@ neighbor 10.1.2.10 activate
 neighbor 10.1.2.16 activate
 network 10.0.6.1/32
 network 172.16.10.0/24
-
-text
+```
 
 **Примечания по конфигурации:**
 
@@ -655,7 +655,7 @@ text
 Команда (на любом Leaf):
 show bgp evpn summary
 
-text
+```
 
 Пример вывода на Leaf-01:
 BGP summary information for VRF default
@@ -665,8 +665,7 @@ Neighbor V AS MsgRcvd MsgSent InQ OutQ Up/Down State PfxRcd
 10.1.2.0 4 65001 125 123 0 0 01:02:33 Estab 2
 10.1.2.6 4 65002 124 122 0 0 01:02:28 Estab 2
 10.1.2.12 4 65003 126 124 0 0 01:02:40 Estab 2
-
-text
+```
 
 **Пояснение полей:**
 
@@ -683,8 +682,7 @@ text
 
 Команда (на любом Leaf):
 show vxlan address-table
-
-text
+```
 
 Пример вывода на Leaf-01:
 Vxlan Mac Address Table
@@ -693,8 +691,7 @@ VLAN VNI MAC Address Type Age Remote VTEP
 
 10 10100 0050.7966.6800 EVPN - 10.0.5.1
 10 10100 0050.7966.6801 EVPN - 10.0.6.1
-
-text
+```
 
 **Пояснение:**
 
@@ -711,7 +708,7 @@ text
 Команда (на любом Leaf):
 show ip route
 
-text
+```
 
 В таблице должен присутствовать маршрут до подсети `172.16.10.0/24` через интерфейс Vlan10 (connected).
 
@@ -722,21 +719,20 @@ Host-1# ping 172.16.10.12
 !!!!!
 Success rate is 100 percent (5/5)
 
-text
+```
 
 С Host-1 на Host-3 (Leaf-03):
 Host-1# ping 172.16.10.13
 !!!!!
 Success rate is 100 percent (5/5)
-
-text
+```
 
 С Host-2 на Host-3:
 Host-2# ping 172.16.10.13
 !!!!!
 Success rate is 100 percent (5/5)
 
-text
+```
 
 Если пинги проходят, значит L2-связность через VXLAN работает корректно.
 
