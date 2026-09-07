@@ -92,8 +92,10 @@
 ## 4. Конфигурации устройств
 
 **Важно:** Перед настройкой BGP на Cisco Nexus 5000 активируйте льготный период лицензирования:
+```
 switch# configure terminal
 switch(config)# license grace-period
+```
 
 text
 
