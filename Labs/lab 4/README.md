@@ -97,9 +97,8 @@ switch# configure terminal
 switch(config)# license grace-period
 ```
 
-text
-
 ### 4.1. Super-Spine (Cisco Nexus 5000)
+```
 hostname NEXUS-5000
 !
 feature bfd
@@ -146,10 +145,10 @@ bfd
 password 0 MySecretKey123
 address-family ipv4 unicast
 disable-peer-as-check
-
-text
+```
 
 ### 4.2. Spine-01 (Arista vEOS, AS 65001)
+```
 hostname Spine-01
 !
 interface Ethernet1
@@ -201,10 +200,9 @@ neighbor 10.1.2.5 remote-as 65006
 bfd
 password MySecretKey123
 address-family ipv4
-
-text
-
+```
 ### 4.3. Spine-02 (Arista vEOS, AS 65002)
+```
 hostname Spine-02
 !
 interface Ethernet1
@@ -256,10 +254,9 @@ neighbor 10.1.2.11 remote-as 65006
 bfd
 password MySecretKey123
 address-family ipv4
-
-text
-
+```
 ### 4.4. Spine-03 (Arista vEOS, AS 65003)
+```
 hostname Spine-03
 !
 interface Ethernet1
@@ -311,10 +308,10 @@ neighbor 10.1.2.17 remote-as 65006
 bfd
 password MySecretKey123
 address-family ipv4
-
-text
+```
 
 ### 4.5. Leaf-01 (Arista vEOS, AS 65004)
+```
 hostname Leaf-01
 !
 interface Ethernet1
@@ -355,10 +352,10 @@ neighbor 10.1.2.12 remote-as 65003
 bfd
 password MySecretKey123
 address-family ipv4
-
-text
+```
 
 ### 4.6. Leaf-02 (Arista vEOS, AS 65005)
+```
 hostname Leaf-02
 !
 interface Ethernet1
@@ -399,10 +396,10 @@ neighbor 10.1.2.14 remote-as 65003
 bfd
 password MySecretKey123
 address-family ipv4
-
-text
+```
 
 ### 4.7. Leaf-03 (Arista vEOS, AS 65006)
+```
 hostname Leaf-03
 !
 interface Ethernet1
@@ -443,8 +440,7 @@ neighbor 10.1.2.16 remote-as 65003
 bfd
 password MySecretKey123
 address-family ipv4
-
-text
+```
 
 **Примечания по конфигурации:**
 - Пароль MD5 `MySecretKey123` используется на всех BGP-сессиях – он должен быть одинаковым на обоих концах каждого пиринга.
@@ -461,7 +457,7 @@ text
 Команда:
 show ip bgp summary
 
-text
+```
 Вывод:
 BGP summary information for VRF default, address family IPv4 Unicast
 BGP router identifier 10.0.0.1, local AS number 65000
@@ -470,7 +466,7 @@ Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down State/PfxRcd
 10.1.1.3 4 65002 24 24 25 0 0 00:12:28 6
 10.1.1.5 4 65003 26 26 25 0 0 00:12:35 6
 
-text
+```
 **Пояснение полей:**
 
 | Параметр | Значение | Описание |
@@ -486,7 +482,7 @@ text
 Команда:
 show ip bgp summary
 
-text
+```
 Вывод:
 BGP summary information for VRF default, address family IPv4 Unicast
 BGP router identifier 10.0.4.1, local AS number 65004
@@ -494,8 +490,7 @@ Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down State/PfxRcd
 10.1.2.0 4 65001 20 20 20 0 0 00:10:45 8
 10.1.2.6 4 65002 19 19 20 0 0 00:10:40 8
 10.1.2.12 4 65003 21 21 20 0 0 00:10:55 8
-
-text
+```
 **Пояснение:**
 
 | Параметр | Значение | Описание |
@@ -509,15 +504,13 @@ text
 **На Super-Spine (Nexus 5000)**
 Команда:
 show bfd neighbors
-
-text
+```
 Вывод:
 OurAddr NeighAddr LD/RD RH/RS Holdown(mult) State Int
 10.1.1.0 10.1.1.1 1090519041/0 Up 0(3) Up Eth2/1
 10.1.1.2 10.1.1.3 1090519042/0 Up 0(3) Up Eth2/2
 10.1.1.4 10.1.1.5 1090519043/0 Up 0(3) Up Eth2/3
-
-text
+```
 **Пояснение:**
 
 | Параметр | Значение | Описание |
@@ -531,15 +524,14 @@ text
 Команда:
 show bfd neighbors
 
-text
+```
 Вывод:
 OurAddr NeighAddr State Int
 10.1.1.1 10.1.1.0 Up Eth1
 10.1.2.0 10.1.2.1 Up Eth2
 10.1.2.2 10.1.2.3 Up Eth3
 10.1.2.4 10.1.2.5 Up Eth4
-
-text
+```
 Все сессии должны быть в состоянии `Up`.
 
 ### 5.3. Проверка таблицы маршрутизации на Leaf-01
@@ -547,7 +539,7 @@ text
 Команда:
 Leaf-01# show ip route bgp
 
-text
+```
 Вывод:
 VRF: default
 Codes: C - connected, S - static, K - kernel,
@@ -583,8 +575,7 @@ B E 10.1.2.8/31 [200/0] via 10.1.2.6, Ethernet2
 B E 10.1.2.10/31 [200/0] via 10.1.2.6, Ethernet2
 B E 10.1.2.14/31 [200/0] via 10.1.2.12, Ethernet3
 B E 10.1.2.16/31 [200/0] via 10.1.2.12, Ethernet3
-
-text
+```
 **Пояснение параметров и демонстрация ECMP:**
 
 | Маршрут назначения | Описание узла | Next Hop (Куда шлем трафик) | Интерфейсы | Примечание по ECMP |
@@ -604,45 +595,43 @@ text
 Команда:
 ping 10.0.0.1 source 10.0.4.1
 
-text
+```
 Результат:
 !!!!!
 Success rate is 100 percent (5/5)
 
-text
+```
 
 **С Leaf-01 на Leaf-02**
 Команда:
 ping 10.0.5.1 source 10.0.4.1
 
-text
+```
 Результат:
 !!!!!
 Success rate is 100 percent (5/5)
-
-text
+```
 
 **С Leaf-01 на Leaf-03**
 Команда:
 ping 10.0.6.1 source 10.0.4.1
 
-text
+```
 Результат:
 !!!!!
 Success rate is 100 percent (5/5)
 
-text
-
+```
 **С Spine-01 на Spine-03 (через Super-Spine)**
 Команда:
 ping 10.0.3.1 source 10.0.1.1
 
-text
+```
 Результат:
 !!!!!
 Success rate is 100 percent (5/5)
 
-text
+```
 
 ---
 
