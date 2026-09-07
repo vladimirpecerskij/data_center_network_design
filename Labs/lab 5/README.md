@@ -70,79 +70,82 @@ Underlay-сеть уже настроена с использованием eBGP
 | Host-3 | Leaf-03 | Eth3 | 172.16.10.13/24 |
 
 ---
+## 4. Конфигурации устройств
+
 ### 4.1. Super-Spine (Cisco Nexus 5000)
 
 На Super-Spine необходимо включить поддержку адресного семейства EVPN и настроить Route Reflector для Spine.
-hostname NEXUS-5000
+
 ```
+hostname NEXUS-5000
 !
 feature bgp
 feature bfd
 !
 interface Ethernet2/1
-no switchport
-ip address 10.1.1.0/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.1.0/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Ethernet2/2
-no switchport
-ip address 10.1.1.2/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.1.2/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Ethernet2/3
-no switchport
-ip address 10.1.1.4/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.1.4/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Loopback0
-ip address 10.0.0.1/32
+  ip address 10.0.0.1/32
 !
 router bgp 65000
-router-id 10.0.0.1
+  router-id 10.0.0.1
 
-address-family ipv4 unicast
-maximum-paths 3
-redistribute connected
-!
+  address-family ipv4 unicast
+    maximum-paths 3                   
+    redistribute connected
+  !
 
-address-family l2vpn evpn
-retain route-target all
-!
+  address-family l2vpn evpn
+    retain route-target all
+  !
 
-neighbor 10.1.1.1 remote-as 65001
-bfd
-password 0 MySecretKey123
-address-family ipv4 unicast
-disable-peer-as-check
-!
-address-family l2vpn evpn
-route-reflector-client
-!
+  neighbor 10.1.1.1 remote-as 65001
+    bfd                              
+    password 0 MySecretKey123
+    address-family ipv4 unicast
+      disable-peer-as-check
+    !
+    address-family l2vpn evpn
+      route-reflector-client
+  !
 
-neighbor 10.1.1.3 remote-as 65002
-bfd
-password 0 MySecretKey123
-address-family ipv4 unicast
-disable-peer-as-check
-!
-address-family l2vpn evpn
-route-reflector-client
-!
+  neighbor 10.1.1.3 remote-as 65002
+    bfd
+    password 0 MySecretKey123
+    address-family ipv4 unicast
+      disable-peer-as-check
+    !
+    address-family l2vpn evpn
+      route-reflector-client
+  !
 
-neighbor 10.1.1.5 remote-as 65003
-bfd
-password 0 MySecretKey123
-address-family ipv4 unicast
-disable-peer-as-check
-!
-address-family l2vpn evpn
-route-reflector-client
+  neighbor 10.1.1.5 remote-as 65003
+    bfd
+    password 0 MySecretKey123
+    address-family ipv4 unicast
+      disable-peer-as-check
+    !
+    address-family l2vpn evpn
+      route-reflector-client
 ```
 
-Примечание: Команда `retain route-target all` гарантирует, что Super-Spine будет передавать все EVPN-маршруты между Route Reflector-клиентами, даже если они не соответствуют локальным route-target.
+**Примечание:** Команда `retain route-target all` гарантирует, что Super-Spine будет передавать все EVPN-маршруты между Route Reflector-клиентами, даже если они не соответствуют локальным route-target.
 
 ---
 
@@ -151,264 +154,267 @@ route-reflector-client
 Каждый Spine должен выступать в роли Route Reflector для Leaf-коммутаторов. Покажем на примере Spine-01 (для Spine-02 и Spine-03 адреса соседей меняются).
 
 **Spine-01 (AS 65001)**
+
 ```
 hostname Spine-01
 !
 interface Ethernet1
-no switchport
-ip address 10.1.1.1/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.1.1/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Ethernet2
-no switchport
-ip address 10.1.2.0/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.2.0/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Ethernet3
-no switchport
-ip address 10.1.2.2/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.2.2/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Ethernet4
-no switchport
-ip address 10.1.2.4/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.2.4/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Loopback0
-ip address 10.0.1.1/32
+  ip address 10.0.1.1/32
 !
 router bgp 65001
-router-id 10.0.1.1
-maximum-paths 3 ecmp 3
-!
-address-family ipv4
-maximum-paths 3
-redistribute connected
-!
-!
-neighbor 10.1.1.0 remote-as 65000
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-route-reflector-client
-!
-!
-neighbor 10.1.2.1 remote-as 65004
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-activate
-route-reflector-client
-!
-!
-neighbor 10.1.2.3 remote-as 65005
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-activate
-route-reflector-client
-!
-!
-neighbor 10.1.2.5 remote-as 65006
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-activate
-route-reflector-client
+  router-id 10.0.1.1
+  maximum-paths 3 ecmp 3
+  !
+  address-family ipv4
+    maximum-paths 3
+    redistribute connected
+  !
+  !
+  neighbor 10.1.1.0 remote-as 65000
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.1 remote-as 65004
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.3 remote-as 65005
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.5 remote-as 65006
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
 ```
 
 **Spine-02 (AS 65002)**
+
 ```
 hostname Spine-02
 !
 interface Ethernet1
-no switchport
-ip address 10.1.1.3/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.1.3/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Ethernet2
-no switchport
-ip address 10.1.2.6/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.2.6/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Ethernet3
-no switchport
-ip address 10.1.2.8/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.2.8/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Ethernet4
-no switchport
-ip address 10.1.2.10/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.2.10/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Loopback0
-ip address 10.0.2.1/32
+  ip address 10.0.2.1/32
 !
 router bgp 65002
-router-id 10.0.2.1
-maximum-paths 3 ecmp 3
-!
-address-family ipv4
-maximum-paths 3
-redistribute connected
-!
-!
-neighbor 10.1.1.2 remote-as 65000
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-route-reflector-client
-!
-!
-neighbor 10.1.2.7 remote-as 65004
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-activate
-route-reflector-client
-!
-!
-neighbor 10.1.2.9 remote-as 65005
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-activate
-route-reflector-client
-!
-!
-neighbor 10.1.2.11 remote-as 65006
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-activate
-route-reflector-client
+  router-id 10.0.2.1
+  maximum-paths 3 ecmp 3
+  !
+  address-family ipv4
+    maximum-paths 3
+    redistribute connected
+  !
+  !
+  neighbor 10.1.1.2 remote-as 65000
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.7 remote-as 65004
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.9 remote-as 65005
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.11 remote-as 65006
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
 ```
 
 **Spine-03 (AS 65003)**
+
 ```
 hostname Spine-03
 !
 interface Ethernet1
-no switchport
-ip address 10.1.1.5/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.1.5/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Ethernet2
-no switchport
-ip address 10.1.2.12/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.2.12/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Ethernet3
-no switchport
-ip address 10.1.2.14/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.2.14/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Ethernet4
-no switchport
-ip address 10.1.2.16/31
-bfd interval 50 min_rx 50 multiplier 3
-no shutdown
+  no switchport
+  ip address 10.1.2.16/31
+  bfd interval 50 min_rx 50 multiplier 3
+  no shutdown
 !
 interface Loopback0
-ip address 10.0.3.1/32
+  ip address 10.0.3.1/32
 !
 router bgp 65003
-router-id 10.0.3.1
-maximum-paths 3 ecmp 3
-!
-address-family ipv4
-maximum-paths 3
-redistribute connected
-!
-!
-neighbor 10.1.1.4 remote-as 65000
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-route-reflector-client
-!
-!
-neighbor 10.1.2.13 remote-as 65004
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-activate
-route-reflector-client
-!
-!
-neighbor 10.1.2.15 remote-as 65005
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-activate
-route-reflector-client
-!
-!
-neighbor 10.1.2.17 remote-as 65006
-bfd
-password MySecretKey123
-!
-address-family ipv4
-send-community
-!
-address-family evpn
-activate
-route-reflector-client
+  router-id 10.0.3.1
+  maximum-paths 3 ecmp 3
+  !
+  address-family ipv4
+    maximum-paths 3
+    redistribute connected
+  !
+  !
+  neighbor 10.1.1.4 remote-as 65000
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.13 remote-as 65004
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.15 remote-as 65005
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
+  !
+  !
+  neighbor 10.1.2.17 remote-as 65006
+    bfd
+    password MySecretKey123
+    !
+    address-family ipv4
+      send-community
+    !
+    address-family evpn
+      activate
+      route-reflector-client
 ```
 
 ---
@@ -418,235 +424,235 @@ route-reflector-client
 На каждом Leaf настраивается VXLAN, VLAN, Anycast Gateway и EVPN. Приведём полную конфигурацию для Leaf-01, для Leaf-02 и Leaf-03 меняются только номера AS, Loopback-адреса и IP-адреса соседей (они указаны в таблице 3.1).
 
 **Leaf-01 (AS 65004, Loopback 10.0.4.1)**
+
 ```
 hostname Leaf-01
 !
 ip routing
 !
 vlan 10
-name RED_ZONE
+   name RED_ZONE
 !
 interface Ethernet3
-description Host-1
-switchport mode access
-switchport access vlan 10
+   description Host-1
+   switchport mode access
+   switchport access vlan 10
 !
 interface Vlan10
-description Gateway for VLAN 10
-ip address virtual 172.16.10.1/24
+   description Gateway for VLAN 10
+   ip address virtual 172.16.10.1/24
 !
 interface Loopback0
-ip address 10.0.4.1/32
+   ip address 10.0.4.1/32
 !
 interface Ethernet1
-no switchport
-ip address 10.1.2.1/31
-bfd interval 50 min-rx 50 multiplier 3
+   no switchport
+   ip address 10.1.2.1/31
+   bfd interval 50 min-rx 50 multiplier 3
 !
 interface Ethernet2
-no switchport
-ip address 10.1.2.7/31
-bfd interval 50 min-rx 50 multiplier 3
+   no switchport
+   ip address 10.1.2.7/31
+   bfd interval 50 min-rx 50 multiplier 3
 !
 interface Ethernet4
-no switchport
-ip address 10.1.2.13/31
-bfd interval 50 min-rx 50 multiplier 3
+   no switchport
+   ip address 10.1.2.13/31
+   bfd interval 50 min-rx 50 multiplier 3
 !
 interface Vxlan1
-vxlan source-interface Loopback0
-vxlan udp-port 4789
-vxlan vlan 10 vni 10100
-vxlan learn-restrict anycast-ip 172.16.10.1
+   vxlan source-interface Loopback0
+   vxlan udp-port 4789
+   vxlan vlan 10 vni 10100
+   vxlan learn-restrict anycast-ip 172.16.10.1
 !
 router bgp 65004
-router-id 10.0.4.1
-maximum-paths 3 ecmp 3
-!
-neighbor 10.1.2.0 remote-as 65001
-bfd
-password MySecretKey123
-send-community extended
-!
-neighbor 10.1.2.6 remote-as 65002
-bfd
-password MySecretKey123
-send-community extended
-!
-neighbor 10.1.2.12 remote-as 65003
-bfd
-password MySecretKey123
-send-community extended
-!
-address-family evpn
-neighbor 10.1.2.0 activate
-neighbor 10.1.2.6 activate
-neighbor 10.1.2.12 activate
-!
-address-family ipv4
-neighbor 10.1.2.0 activate
-neighbor 10.1.2.6 activate
-neighbor 10.1.2.12 activate
-network 10.0.4.1/32
-network 172.16.10.0/24
+   router-id 10.0.4.1
+   maximum-paths 3 ecmp 3
+   !
+   neighbor 10.1.2.0 remote-as 65001
+      bfd
+      password MySecretKey123
+      send-community extended
+   !
+   neighbor 10.1.2.6 remote-as 65002
+      bfd
+      password MySecretKey123
+      send-community extended
+   !
+   neighbor 10.1.2.12 remote-as 65003
+      bfd
+      password MySecretKey123
+      send-community extended
+   !
+   address-family evpn
+      neighbor 10.1.2.0 activate
+      neighbor 10.1.2.6 activate
+      neighbor 10.1.2.12 activate
+   !
+   address-family ipv4
+      neighbor 10.1.2.0 activate
+      neighbor 10.1.2.6 activate
+      neighbor 10.1.2.12 activate
+      network 10.0.4.1/32
+      network 172.16.10.0/24
 ```
 
 **Leaf-02 (AS 65005, Loopback 10.0.5.1)**
+
 ```
 hostname Leaf-02
 !
 ip routing
 !
 vlan 10
-name RED_ZONE
+   name RED_ZONE
 !
 interface Ethernet3
-description Host-2
-switchport mode access
-switchport access vlan 10
+   description Host-2
+   switchport mode access
+   switchport access vlan 10
 !
 interface Vlan10
-description Gateway for VLAN 10
-ip address virtual 172.16.10.1/24
+   description Gateway for VLAN 10
+   ip address virtual 172.16.10.1/24
 !
 interface Loopback0
-ip address 10.0.5.1/32
+   ip address 10.0.5.1/32
 !
 interface Ethernet1
-no switchport
-ip address 10.1.2.3/31
-bfd interval 50 min-rx 50 multiplier 3
+   no switchport
+   ip address 10.1.2.3/31
+   bfd interval 50 min-rx 50 multiplier 3
 !
 interface Ethernet2
-no switchport
-ip address 10.1.2.9/31
-bfd interval 50 min-rx 50 multiplier 3
+   no switchport
+   ip address 10.1.2.9/31
+   bfd interval 50 min-rx 50 multiplier 3
 !
 interface Ethernet4
-no switchport
-ip address 10.1.2.15/31
-bfd interval 50 min-rx 50 multiplier 3
+   no switchport
+   ip address 10.1.2.15/31
+   bfd interval 50 min-rx 50 multiplier 3
 !
 interface Vxlan1
-vxlan source-interface Loopback0
-vxlan udp-port 4789
-vxlan vlan 10 vni 10100
-vxlan learn-restrict anycast-ip 172.16.10.1
+   vxlan source-interface Loopback0
+   vxlan udp-port 4789
+   vxlan vlan 10 vni 10100
+   vxlan learn-restrict anycast-ip 172.16.10.1
 !
 router bgp 65005
-router-id 10.0.5.1
-maximum-paths 3 ecmp 3
-!
-neighbor 10.1.2.2 remote-as 65001
-bfd
-password MySecretKey123
-send-community extended
-!
-neighbor 10.1.2.8 remote-as 65002
-bfd
-password MySecretKey123
-send-community extended
-!
-neighbor 10.1.2.14 remote-as 65003
-bfd
-password MySecretKey123
-send-community extended
-!
-address-family evpn
-neighbor 10.1.2.2 activate
-neighbor 10.1.2.8 activate
-neighbor 10.1.2.14 activate
-!
-address-family ipv4
-neighbor 10.1.2.2 activate
-neighbor 10.1.2.8 activate
-neighbor 10.1.2.14 activate
-network 10.0.5.1/32
-network 172.16.10.0/24
+   router-id 10.0.5.1
+   maximum-paths 3 ecmp 3
+   !
+   neighbor 10.1.2.2 remote-as 65001
+      bfd
+      password MySecretKey123
+      send-community extended
+   !
+   neighbor 10.1.2.8 remote-as 65002
+      bfd
+      password MySecretKey123
+      send-community extended
+   !
+   neighbor 10.1.2.14 remote-as 65003
+      bfd
+      password MySecretKey123
+      send-community extended
+   !
+   address-family evpn
+      neighbor 10.1.2.2 activate
+      neighbor 10.1.2.8 activate
+      neighbor 10.1.2.14 activate
+   !
+   address-family ipv4
+      neighbor 10.1.2.2 activate
+      neighbor 10.1.2.8 activate
+      neighbor 10.1.2.14 activate
+      network 10.0.5.1/32
+      network 172.16.10.0/24
 ```
 
 **Leaf-03 (AS 65006, Loopback 10.0.6.1)**
+
 ```
 hostname Leaf-03
 !
 ip routing
 !
 vlan 10
-name RED_ZONE
+   name RED_ZONE
 !
 interface Ethernet3
-description Host-3
-switchport mode access
-switchport access vlan 10
+   description Host-3
+   switchport mode access
+   switchport access vlan 10
 !
 interface Vlan10
-description Gateway for VLAN 10
-ip address virtual 172.16.10.1/24
+   description Gateway for VLAN 10
+   ip address virtual 172.16.10.1/24
 !
 interface Loopback0
-ip address 10.0.6.1/32
+   ip address 10.0.6.1/32
 !
 interface Ethernet1
-no switchport
-ip address 10.1.2.5/31
-bfd interval 50 min-rx 50 multiplier 3
+   no switchport
+   ip address 10.1.2.5/31
+   bfd interval 50 min-rx 50 multiplier 3
 !
 interface Ethernet2
-no switchport
-ip address 10.1.2.11/31
-bfd interval 50 min-rx 50 multiplier 3
+   no switchport
+   ip address 10.1.2.11/31
+   bfd interval 50 min-rx 50 multiplier 3
 !
 interface Ethernet4
-no switchport
-ip address 10.1.2.17/31
-bfd interval 50 min-rx 50 multiplier 3
+   no switchport
+   ip address 10.1.2.17/31
+   bfd interval 50 min-rx 50 multiplier 3
 !
 interface Vxlan1
-vxlan source-interface Loopback0
-vxlan udp-port 4789
-vxlan vlan 10 vni 10100
-vxlan learn-restrict anycast-ip 172.16.10.1
+   vxlan source-interface Loopback0
+   vxlan udp-port 4789
+   vxlan vlan 10 vni 10100
+   vxlan learn-restrict anycast-ip 172.16.10.1
 !
 router bgp 65006
-router-id 10.0.6.1
-maximum-paths 3 ecmp 3
-!
-neighbor 10.1.2.4 remote-as 65001
-bfd
-password MySecretKey123
-send-community extended
-!
-neighbor 10.1.2.10 remote-as 65002
-bfd
-password MySecretKey123
-send-community extended
-!
-neighbor 10.1.2.16 remote-as 65003
-bfd
-password MySecretKey123
-send-community extended
-!
-address-family evpn
-neighbor 10.1.2.4 activate
-neighbor 10.1.2.10 activate
-neighbor 10.1.2.16 activate
-!
-address-family ipv4
-neighbor 10.1.2.4 activate
-neighbor 10.1.2.10 activate
-neighbor 10.1.2.16 activate
-network 10.0.6.1/32
-network 172.16.10.0/24
+   router-id 10.0.6.1
+   maximum-paths 3 ecmp 3
+   !
+   neighbor 10.1.2.4 remote-as 65001
+      bfd
+      password MySecretKey123
+      send-community extended
+   !
+   neighbor 10.1.2.10 remote-as 65002
+      bfd
+      password MySecretKey123
+      send-community extended
+   !
+   neighbor 10.1.2.16 remote-as 65003
+      bfd
+      password MySecretKey123
+      send-community extended
+   !
+   address-family evpn
+      neighbor 10.1.2.4 activate
+      neighbor 10.1.2.10 activate
+      neighbor 10.1.2.16 activate
+   !
+   address-family ipv4
+      neighbor 10.1.2.4 activate
+      neighbor 10.1.2.10 activate
+      neighbor 10.1.2.16 activate
+      network 10.0.6.1/32
+      network 172.16.10.0/24
 ```
 
 **Примечания по конфигурации:**
-
 - Команда `ip address virtual` на SVI создаёт Anycast Gateway – один и тот же IP-адрес на всех Leaf.
 - В интерфейсе `Vxlan1` настроено сопоставление VLAN 10 с VNI 10100.
 - В BGP в адресном семействе `evpn` соседи активируются с помощью команды `activate`.
 - Для корректной работы маршрутизации добавлена глобальная команда `ip routing`.
-
----
 
 ## 5. Верификация
 
