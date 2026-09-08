@@ -718,6 +718,7 @@ text
 Этот маршрут анонсируется каждым VTEP и сообщает остальным, какие VNI он обслуживает. На каждом Leaf должны быть видны записи от других Leaf-коммутаторов.
 
 **Пример вывода на Leaf-01:**
+```
 BGP routing table information for VRF default
 Router identifier 10.0.4.1, local AS number 65004
 Route status codes: s - suppressed, * - valid, > - active, E - ECMP head, e - ECMP
@@ -737,7 +738,7 @@ RD: 10.0.5.1:10100 IMET
 RD: 10.0.6.1:10100 IMET
 10.0.6.1 0 100 0 65006 65001 i
 
-text
+```
 В этом примере Leaf-01 видит IMET-маршруты от Leaf-02 (VTEP 10.0.5.1) и Leaf-03 (VTEP 10.0.6.1), что говорит о корректной передаче EVPN-информации.
 
 ## 6. Заключение
