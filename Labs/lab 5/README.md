@@ -438,10 +438,6 @@ interface Ethernet3
    switchport mode access
    switchport access vlan 10
 !
-interface Vlan10
-   description Gateway for VLAN 10
-   ip address virtual 172.16.10.1/24
-!
 interface Loopback0
    ip address 10.0.4.1/32
 !
@@ -464,7 +460,6 @@ interface Vxlan1
    vxlan source-interface Loopback0
    vxlan udp-port 4789
    vxlan vlan 10 vni 10100
-   vxlan learn-restrict anycast-ip 172.16.10.1
 !
 router bgp 65004
    router-id 10.0.4.1
@@ -495,7 +490,12 @@ router bgp 65004
       neighbor 10.1.2.6 activate
       neighbor 10.1.2.12 activate
       network 10.0.4.1/32
-      network 172.16.10.0/24
+
+!
+   l2vpn evpn instance 10100
+      rd auto
+      route-target import auto
+      route-target export auto
 ```
 
 **Leaf-02 (AS 65005, Loopback 10.0.5.1)**
@@ -512,10 +512,6 @@ interface Ethernet3
    description Host-2
    switchport mode access
    switchport access vlan 10
-!
-interface Vlan10
-   description Gateway for VLAN 10
-   ip address virtual 172.16.10.1/24
 !
 interface Loopback0
    ip address 10.0.5.1/32
@@ -539,7 +535,6 @@ interface Vxlan1
    vxlan source-interface Loopback0
    vxlan udp-port 4789
    vxlan vlan 10 vni 10100
-   vxlan learn-restrict anycast-ip 172.16.10.1
 !
 router bgp 65005
    router-id 10.0.5.1
@@ -570,7 +565,12 @@ router bgp 65005
       neighbor 10.1.2.8 activate
       neighbor 10.1.2.14 activate
       network 10.0.5.1/32
-      network 172.16.10.0/24
+
+!
+   l2vpn evpn instance 10100
+      rd auto
+      route-target import auto
+      route-target export auto
 ```
 
 **Leaf-03 (AS 65006, Loopback 10.0.6.1)**
@@ -587,10 +587,6 @@ interface Ethernet3
    description Host-3
    switchport mode access
    switchport access vlan 10
-!
-interface Vlan10
-   description Gateway for VLAN 10
-   ip address virtual 172.16.10.1/24
 !
 interface Loopback0
    ip address 10.0.6.1/32
@@ -614,7 +610,6 @@ interface Vxlan1
    vxlan source-interface Loopback0
    vxlan udp-port 4789
    vxlan vlan 10 vni 10100
-   vxlan learn-restrict anycast-ip 172.16.10.1
 !
 router bgp 65006
    router-id 10.0.6.1
@@ -645,15 +640,20 @@ router bgp 65006
       neighbor 10.1.2.10 activate
       neighbor 10.1.2.16 activate
       network 10.0.6.1/32
-      network 172.16.10.0/24
+     
+!
+   l2vpn evpn instance 10100
+      rd auto
+      route-target import auto
+      route-target export auto
 ```
 
-**Примечания по конфигурации:**
-- Команда `ip address virtual` на SVI создаёт Anycast Gateway – один и тот же IP-адрес на всех Leaf.
+Примечания по конфигурации:
+
 - В интерфейсе `Vxlan1` настроено сопоставление VLAN 10 с VNI 10100.
 - В BGP в адресном семействе `evpn` соседи активируются с помощью команды `activate`.
+- Блок `l2vpn evpn instance 10100` явно определяет EVPN-сервис для VNI 10100. Команды `rd auto` и `route-target ... auto` заставляют коммутатор автоматически генерировать RD и RT, что необходимо для обмена EVPN-маршрутами.
 - Для корректной работы маршрутизации добавлена глобальная команда `ip routing`.
-
 ## 5. Верификация
 
 ### 5.1. Проверка BGP EVPN-сессий
@@ -709,38 +709,36 @@ VLAN VNI MAC Address Type Age Remote VTEP
 | **Type** | `EVPN` – изучено через контрольную плоскость |
 | **Remote VTEP** | IP-адрес удалённого VTEP (Leaf) |
 
-### 5.3. Проверка таблицы маршрутизации (для Anycast Gateway)
+### 5.3. Проверка EVPN-маршрутов типа 3 (IMET)
 
 Команда (на любом Leaf):
-show ip route
+show bgp evpn route-type imet
 
-```
+text
+Этот маршрут анонсируется каждым VTEP и сообщает остальным, какие VNI он обслуживает. На каждом Leaf должны быть видны записи от других Leaf-коммутаторов.
 
-В таблице должен присутствовать маршрут до подсети `172.16.10.0/24` через интерфейс Vlan10 (connected).
+**Пример вывода на Leaf-01:**
+BGP routing table information for VRF default
+Router identifier 10.0.4.1, local AS number 65004
+Route status codes: s - suppressed, * - valid, > - active, E - ECMP head, e - ECMP
+% - Pending BGP convergence
+Origin codes: i - IGP, e - EGP, ? - incomplete
+AS Path Attributes: Or-ID - Originator ID, C-LST - Cluster List, LL - Link Local Address
 
-### 5.4. Проверка связности между хостами
+Network Next Hop Metric LocPref Weight Path
 
-С Host-1 (подключён к Leaf-01) на Host-2 (Leaf-02):
-Host-1# ping 172.16.10.12
-!!!!!
-Success rate is 100 percent (5/5)
+RD: 10.0.4.1:10100 IMET
 
-```
+0 100 - i
 
-С Host-1 на Host-3 (Leaf-03):
-Host-1# ping 172.16.10.13
-!!!!!
-Success rate is 100 percent (5/5)
-```
+RD: 10.0.5.1:10100 IMET
+10.0.5.1 0 100 0 65005 65001 i
 
-С Host-2 на Host-3:
-Host-2# ping 172.16.10.13
-!!!!!
-Success rate is 100 percent (5/5)
+RD: 10.0.6.1:10100 IMET
+10.0.6.1 0 100 0 65006 65001 i
 
-```
-
-Если пинги проходят, значит L2-связность через VXLAN работает корректно.
+text
+В этом примере Leaf-01 видит IMET-маршруты от Leaf-02 (VTEP 10.0.5.1) и Leaf-03 (VTEP 10.0.6.1), что говорит о корректной передаче EVPN-информации.
 
 ## 6. Заключение
 
