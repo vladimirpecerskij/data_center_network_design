@@ -698,12 +698,14 @@ VLAN  VNI       MAC Address       Type      Age    Remote VTEP
 ```
 Пояснение:
 
-Параметр	Описание
-VLAN	Локальный VLAN
-VNI	VXLAN-идентификатор
-MAC Address	MAC-адрес клиента на удалённом Leaf
-Type	EVPN – изучено через контрольную плоскость
-Remote VTEP	IP-адрес удалённого VTEP (Leaf)
+|Параметр|	Описание|
+|:---|:---|
+|VLAN	|Локальный VLAN|
+|VNI|	VXLAN-идентификатор|
+|MAC Address|	MAC-адрес клиента на удалённом Leaf|
+|Type|	EVPN – изучено через контрольную плоскость|
+|Remote VTE|	IP-адрес удалённого VTEP (Leaf)|
+---
 5.3. Проверка EVPN-маршрутов типа 3 (IMET)
 Команда (на любом Leaf):
 
