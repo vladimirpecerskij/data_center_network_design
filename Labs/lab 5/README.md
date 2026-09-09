@@ -662,8 +662,6 @@ router bgp 65006
 ```
 show bgp evpn summary
 Пример вывода на Leaf-01:
-
-```
 BGP summary information for VRF default
 Router identifier 10.0.4.1, local AS number 65004
 Neighbor Status Codes: m - Under maintenance
@@ -671,16 +669,17 @@ Neighbor Status Codes: m - Under maintenance
   10.1.2.0         4  65001            125       123    0     0 01:02:33 Estab   2
   10.1.2.6         4  65002            124       122    0     0 01:02:28 Estab   2
   10.1.2.12        4  65003            126       124    0     0 01:02:40 Estab   2
-Пояснение полей:
-
-Параметр	Описание
-Neighbor	IP-адрес соседа (Spine)
-AS	Номер AS соседа
-MsgRcvd / MsgSent	Количество полученных/отправленных BGP-сообщений
-Up/Down	Время активности сессии
-State	Должно быть Estab (установлена)
-PfxRcd	Количество полученных EVPN-маршрутов
-
+```
+**Пояснение полей**:
+|Параметр|	Описание|
+|:---|:---|
+|Neighbor	|IP-адрес соседа (Spine)|
+|AS	|Номер AS соседа|
+|MsgRcvd / MsgSent|	Количество полученных/отправленных BGP-сообщений|
+|Up/Down|	Время активности сессии|
+|State|	Должно быть Estab (установлена)|
+|PfxRcd|	Количество полученных EVPN-маршрутов|
+---
 ## 5.2. **Проверка таблицы MAC-адресов в VXLAN**
 
 Команда (на любом Leaf):
