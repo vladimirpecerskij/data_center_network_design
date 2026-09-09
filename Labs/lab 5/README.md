@@ -658,67 +658,60 @@ router bgp 65006
 
 ### 5.1. Проверка BGP EVPN-сессий
 
-Команда (на любом Leaf):
+**Команда (на любом Leaf):**
+```
 show bgp evpn summary
+Пример вывода на Leaf-01:
 
 ```
-
-Пример вывода на Leaf-01:
 BGP summary information for VRF default
 Router identifier 10.0.4.1, local AS number 65004
 Neighbor Status Codes: m - Under maintenance
-Neighbor V AS MsgRcvd MsgSent InQ OutQ Up/Down State PfxRcd
-10.1.2.0 4 65001 125 123 0 0 01:02:33 Estab 2
-10.1.2.6 4 65002 124 122 0 0 01:02:28 Estab 2
-10.1.2.12 4 65003 126 124 0 0 01:02:40 Estab 2
-```
+  Neighbor         V  AS           MsgRcvd   MsgSent  InQ OutQ  Up/Down State   PfxRcd
+  10.1.2.0         4  65001            125       123    0     0 01:02:33 Estab   2
+  10.1.2.6         4  65002            124       122    0     0 01:02:28 Estab   2
+  10.1.2.12        4  65003            126       124    0     0 01:02:40 Estab   2
+Пояснение полей:
 
-**Пояснение полей:**
-
-| Параметр | Описание |
-|:---|:---|
-| **Neighbor** | IP-адрес соседа (Spine) |
-| **AS** | Номер AS соседа |
-| **MsgRcvd / MsgSent** | Количество полученных/отправленных BGP-сообщений |
-| **Up/Down** | Время активности сессии |
-| **State** | Должно быть `Estab` (установлена) |
-| **PfxRcd** | Количество полученных EVPN-маршрутов |
-
-### 5.2. Проверка таблицы MAC-адресов в VXLAN
-
+Параметр	Описание
+Neighbor	IP-адрес соседа (Spine)
+AS	Номер AS соседа
+MsgRcvd / MsgSent	Количество полученных/отправленных BGP-сообщений
+Up/Down	Время активности сессии
+State	Должно быть Estab (установлена)
+PfxRcd	Количество полученных EVPN-маршрутов
+5.2. Проверка таблицы MAC-адресов в VXLAN
 Команда (на любом Leaf):
+```
 show vxlan address-table
-```
-
 Пример вывода на Leaf-01:
-Vxlan Mac Address Table
+
+
+          Vxlan Mac Address Table
 ================================================
-VLAN VNI MAC Address Type Age Remote VTEP
-
-10 10100 0050.7966.6800 EVPN - 10.0.5.1
-10 10100 0050.7966.6801 EVPN - 10.0.6.1
+VLAN  VNI       MAC Address       Type      Age    Remote VTEP
+----  --------  ----------------- --------  -----  -------------
+10    10100     0050.7966.6800    EVPN      -      10.0.5.1
+10    10100     0050.7966.6801    EVPN      -      10.0.6.1
 ```
+Пояснение:
 
-**Пояснение:**
-
-| Параметр | Описание |
-|:---|:---|
-| **VLAN** | Локальный VLAN |
-| **VNI** | VXLAN-идентификатор |
-| **MAC Address** | MAC-адрес клиента на удалённом Leaf |
-| **Type** | `EVPN` – изучено через контрольную плоскость |
-| **Remote VTEP** | IP-адрес удалённого VTEP (Leaf) |
-
-### 5.3. Проверка EVPN-маршрутов типа 3 (IMET)
-
+Параметр	Описание
+VLAN	Локальный VLAN
+VNI	VXLAN-идентификатор
+MAC Address	MAC-адрес клиента на удалённом Leaf
+Type	EVPN – изучено через контрольную плоскость
+Remote VTEP	IP-адрес удалённого VTEP (Leaf)
+5.3. Проверка EVPN-маршрутов типа 3 (IMET)
 Команда (на любом Leaf):
+
 ```
 show bgp evpn route-type imet
-```
 Этот маршрут анонсируется каждым VTEP и сообщает остальным, какие VNI он обслуживает. На каждом Leaf должны быть видны записи от других Leaf-коммутаторов.
 
-**Пример вывода на Leaf-01:**
-```
+Пример вывода на Leaf-01:
+
+
 BGP routing table information for VRF default
 Router identifier 10.0.4.1, local AS number 65004
 Route status codes: s - suppressed, * - valid, > - active, E - ECMP head, e - ECMP
@@ -726,27 +719,38 @@ Route status codes: s - suppressed, * - valid, > - active, E - ECMP head, e - EC
 Origin codes: i - IGP, e - EGP, ? - incomplete
 AS Path Attributes: Or-ID - Originator ID, C-LST - Cluster List, LL - Link Local Address
 
-Network Next Hop Metric LocPref Weight Path
-
-RD: 10.0.4.1:10100 IMET
-
-0 100 - i
-
-RD: 10.0.5.1:10100 IMET
-10.0.5.1 0 100 0 65005 65001 i
-
-RD: 10.0.6.1:10100 IMET
-10.0.6.1 0 100 0 65006 65001 i
-
-```
+         Network                Next Hop            Metric  LocPref Weight  Path
+ * >     RD: 10.0.4.1:10100 IMET
+                                 0           100      -       i
+ * >     RD: 10.0.5.1:10100 IMET
+                                 10.0.5.1           0       100     0       65005 65001 i
+ * >     RD: 10.0.6.1:10100 IMET
+                                 10.0.6.1           0       100     0       65006 65001 i
 В этом примере Leaf-01 видит IMET-маршруты от Leaf-02 (VTEP 10.0.5.1) и Leaf-03 (VTEP 10.0.6.1), что говорит о корректной передаче EVPN-информации.
+```
+5.4. Проверка связности между хостами (L2-трафик)
+Для проверки L2-связности между клиентами в одной зоне (VLAN 10) были выполнены ping-запросы между хостами, подключенными к разным Leaf-коммутаторам.
+```
+С Host-1 (Leaf-01) на Host-2 (Leaf-02):
+Host-1# ping 172.16.10.12
+!!!!!
+Success rate is 100 percent (5/5)
+С Host-1 (Leaf-01) на Host-3 (Leaf-03):
+Host-1# ping 172.16.10.13
+!!!!!
+Success rate is 100 percent (5/5)
+С Host-2 (Leaf-02) на Host-3 (Leaf-03):
+Host-2# ping 172.16.10.13
+!!!!!
+Success rate is 100 percent (5/5)
+Результаты ping-тестов подтверждают, что L2-трафик между клиентами в разных Leaf успешно проходит через VXLAN-туннели.
+```
+6. Заключение
+-В ходе работы настроена Overlay-сеть на основе VXLAN EVPN для L2-связанности клиентов:
+-Использована существующая Underlay-сеть с eBGP, BFD, MD5 и ECMP.
+-На Spine настроены Route Reflector'ы для адресного семейства EVPN.
+-На Leaf созданы VTEP, L2 VNI (10100) и VLAN 10.
+-Клиентские порты (Eth3) переведены в access-режим.
+-Проверена связность между хостами, подключёнными к разным Leaf, через VXLAN-туннели.
+-Все BGP EVPN-сессии установлены, MAC-адреса изучаются через контрольную плоскость, L2-трафик между клиентами проходит без потерь.
 
-## 6. Заключение
-
-В ходе работы настроена Overlay-сеть на основе VXLAN EVPN для L2-связанности клиентов:
-- Использована существующая Underlay-сеть с eBGP, BFD, MD5 и ECMP.
-- На Spine настроены Route Reflector'ы для адресного семейства EVPN.
-- На Leaf созданы VTEP, L2 VNI (10100), VLAN 10 и Anycast Gateway (172.16.10.1).
-- Клиентские порты (Eth3) переведены в access-режим.
-- Проверена связность между хостами, подключёнными к разным Leaf, через VXLAN-туннели.
-- Все BGP EVPN-сессии установлены, MAC-адреса изучаются через контрольную плоскость, L2-трафик между клиентами проходит без потерь.
