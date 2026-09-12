@@ -938,5 +938,101 @@ Host-2 (VLAN 20, VNI 10200)
 
 | Компонент | Lab 5 (L2 VNI) | Lab 6 (L3 VNI) |
 |:---|:---|:---|
-| **VLAN**
+| **VLAN** | Только VLAN 10 | VLAN 10 (Host-1), VLAN 20 (Host-2, Host-3) |
+| **L2 VNI** | VNI 10100 | VNI 10100, VNI 10200 |
+| **L3 VNI** | Не используется | VNI 50000 (транспорт для VRF) |
+| **VRF** | Не используется | VRF TENANT |
+| **SVI** | Не настраивается | `Vlan10`, `Vlan20` с `ip address virtual` |
+| **Anycast Gateway** | Не настраивается | `172.16.10.1`, `172.16.20.1` |
+| **Anycast MAC** | Не настраивается | `0000.aaaa.bbbb` |
+| **Loopback1** | Не используется | RMAC для VRF TENANT |
+| **EVPN Type-2** | MAC-адреса хостов | MAC-адреса + IP-адреса хостов |
+| **EVPN Type-5** | Не используется | IP Prefix маршруты |
+| **Маршрутизация между VNI** | Нет | Через L3 VNI 50000 |
+| **Команда BGP** | `redistribute learned` | `redistribute learned` + `redistribute connected` (в VRF) |
 
+### Что добавилось в конфигурации Leaf
+
+1. **VRF TENANT:**
+   ```
+   vrf instance TENANT
+   ```
+
+2. **L3 VNI в интерфейсе Vxlan1:**
+   ```
+   vxlan vrf TENANT vni 50000
+   ```
+
+3. **Anycast MAC (глобально):**
+   ```
+   ip virtual-router mac-address 0000.aaaa.bbbb
+   ```
+
+4. **Loopback1 для RMAC:**
+   ```
+   interface Loopback1
+      vrf TENANT
+      ip address 10.10.10.1/32
+   ```
+
+5. **SVI с Anycast Gateway:**
+   ```
+   interface Vlan10
+      vrf TENANT
+      ip address virtual 172.16.10.1/24
+   ```
+
+6. **EVPN-сервис для VRF:**
+   ```
+   vrf TENANT
+      rd auto
+      route-target both auto
+      redistribute connected
+   ```
+
+7. **Address family для VRF:**
+   ```
+   address-family ipv4 vrf TENANT
+      redistribute connected
+   ```
+
+### Что осталось без изменений
+
+- **Underlay** (eBGP, BFD, MD5, ECMP) — совпадает с Lab 5.
+- **Super-Spine** — та же конфигурация (Route Server для EVPN).
+- **Spine** — та же конфигурация (передача EVPN-маршрутов).
+- **VLAN 10, VNI 10100** — сохранены.
+- **Порты Leaf** (Eth1–Eth4) — та же схема.
+- **BFD, MD5, ECMP** — без изменений.
+
+---
+
+## 8. Итоговая таблица проверок
+
+| Проверка | Команда | Где | Ожидаемый результат |
+|:---|:---|:---|:---|
+| BGP EVPN-сессии | `show bgp evpn summary` | Leaf | Все соседи `Estab` |
+| L2 VNI (MAC) | `show vxlan address-table` | Leaf | MAC-адреса хостов в VNI 10100, 10200 |
+| EVPN Type-2 | `show bgp evpn route-type mac-ip` | Leaf | MAC/IP маршруты хостов |
+| EVPN Type-5 | `show bgp evpn route-type ip-prefix` | Leaf | IP Prefix маршруты подсетей |
+| VRF-маршрутизация | `show ip route vrf TENANT` | Leaf | Маршруты через Vxlan1 |
+| L3 VNI | `show vxlan vrf` | Leaf | VNI 50000 в состоянии `Up` |
+| ARP в VRF | `show ip arp vrf TENANT` | Leaf | RMAC для удалённых хостов |
+| Ping между VNI | `ping 172.16.20.12` | Host-1 | `Success rate is 100 percent` |
+| Traceroute между VNI | `traceroute 172.16.20.12` | Host-1 | 2 хопа через Anycast Gateway |
+| Traceroute внутри VNI | `traceroute 172.16.20.13` | Host-2 | 1 хоп — L2 VNI |
+
+---
+
+## 9. Заключение
+
+В ходе работы настроена Overlay-сеть на основе VXLAN EVPN **с маршрутизацией между VNI** (L3 VNI):
+
+- **L2 VNI** (10100 для VLAN 10, 10200 для VLAN 20) обеспечивают L2-связность клиентов внутри одного VNI.
+- **L3 VNI** (50000) обеспечивает маршрутизацию между клиентами в разных VNI через **EVPN Symmetric IRB**.
+- **VRF TENANT** изолирует клиентскую маршрутизацию.
+- **Anycast Gateway** (`172.16.10.1`, `172.16.20.1`) настроен на всех Leaf с одинаковым MAC (`0000.aaaa.bbbb`).
+- **Type-2 (MAC/IP)** и **Type-5 (IP Prefix)** маршруты передаются через EVPN.
+- Клиентские порты (Ethernet4) переведены в access-режим.
+- Проверена связность между хостами, подключёнными к разным Leaf и находящимися в разных VNI.
+- Все BGP EVPN-сессии установлены, MAC-адреса изучаются через контрольную плоскость, L3-трафик между клиентами проходит без потерь.
