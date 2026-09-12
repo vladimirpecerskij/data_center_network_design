@@ -7,6 +7,7 @@
 ## 1. Топология сети
 
 ![Топология](./lab5_2.png)
+
 В среде **PNET Lab** используется та же физическая топология, что и в лабораторной работе №4:
 
 - **Super-Spine (уровень 1):** 1 коммутатор **Cisco Nexus 9000** (образ NX-OS).
@@ -73,9 +74,7 @@ Underlay-сеть уже настроена с использованием eBGP
 ## 4. Конфигурации устройств
 
 > **Важно для Arista EOS:** Перед настройкой EVPN необходимо включить модель маршрутизации multi-agent:
-> ```
 > service routing protocols model multi-agent
-> ```
 > После ввода этой команды требуется **перезагрузка** устройства.
 
 ### 4.1. Super-Spine (Cisco Nexus 9000)
@@ -152,7 +151,6 @@ route-reflector-client
 
 **Примечание:** Команда `retain route-target all` гарантирует, что Super-Spine будет передавать все EVPN-маршруты между клиентами.
 
----
 
 ### 4.2. Конфигурация Spine (Arista vEOS)
 
@@ -619,7 +617,7 @@ redistribute learned
 Команда (на любом Leaf):
 show bgp evpn summary
 
-```text```
+```
 
 **Пример вывода на Leaf-01:**
 BGP summary information for VRF default
@@ -630,7 +628,6 @@ Neighbor V AS MsgRcvd MsgSent InQ OutQ Up/Down State PfxRcd
 10.1.2.6 4 65002 124 122 0 0 01:02:28 Estab 2
 10.1.2.12 4 65003 126 124 0 0 01:02:40 Estab 2
 ```
-text```
 
 **Пояснение полей:**
 
@@ -648,7 +645,7 @@ text```
 Команда (на любом Leaf):
 show vxlan address-table
 
-```text```
+```
 
 **Пример вывода на Leaf-01:**
 Vxlan Mac Address Table
@@ -657,8 +654,7 @@ VLAN VNI MAC Address Type Age Remote VTEP
 
 10 10100 0050.7966.680e EVPN - 10.0.5.1
 10 10100 0050.7966.680f EVPN - 10.0.6.1
-
-```text```
+```
 
 **Пояснение:**
 
@@ -740,9 +736,6 @@ Success rate is 100 percent (5/5)
 Host-2# ping 172.16.10.13
 !!!!!
 Success rate is 100 percent (5/5)
-
-```
-
 Результаты ping-тестов подтверждают, что L2-трафик между клиентами в разных Leaf успешно проходит через VXLAN-туннели.
 
 ---
