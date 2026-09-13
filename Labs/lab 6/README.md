@@ -740,7 +740,7 @@ show bgp evpn route-type ip-prefix
 Команда (на Leaf-01):
 show bgp evpn route-type mac-ip
 
-text
+```
 
 Этот вывод показывает, что удалённые хосты анонсируются через **Type-2 (MAC+IP)**. Именно эти маршруты используются для L3VNI.
 
@@ -761,7 +761,7 @@ RD: 10.0.4.1:10100 mac-ip 0050.7966.6800
 RD: 10.0.5.1:10100 mac-ip 0050.7966.6801 172.16.20.12
 10.0.5.1 0 100 0 65005 65001 i
 
-text
+```
 
 **Пояснение:**
 - Первая запись — это **локальный MAC-адрес хоста** (Host-1) на Leaf-01, анонсированный в EVPN.
@@ -772,7 +772,7 @@ text
 Команда (на Leaf-01):
 show ip route vrf TENANT
 
-text
+```
 
 В таблице должны быть видны **удалённые host routes `/32`**, изученные через EVPN Type-2.
 
@@ -793,7 +793,7 @@ G - gRIBI, RC - Route Cache Route
 C 172.16.10.0/24 is directly connected, Vlan10
 B E 172.16.20.12/32 [200/0] via 10.0.5.1, Vlan10
 
-text
+```
 
 **Пояснение:**
 - `C 172.16.10.0/24` — локальная подсеть Leaf-01.
@@ -804,7 +804,7 @@ text
 Команда (на Leaf-01):
 show bgp evpn route-type ip-prefix
 
-text
+```
 
 После удаления `redistribute connected` вывод должен быть **пустым** или содержать только служебные записи. Это подтверждает, что маршрутизация между подсетями работает **исключительно через Type-2 MAC+IP**, а не через Type-5 IP Prefix.
 
@@ -818,17 +818,17 @@ AS Path Attributes: Or-ID - Originator ID, C-LST - Cluster List, LL - Link Local
 
 Network Next Hop Metric LocPref Weight Path
 
-text
+```
 (Вывод пустой — Type-5 отсутствуют.)
 
 ### 5.8. Повторный ping между подсетями
-
+```
 С Host-1 (Leaf-01, подсеть `172.16.10.0/24`) на Host-2 (Leaf-02, подсеть `172.16.20.0/24`):
 Host-1# ping 172.16.20.12
 !!!!!
 Success rate is 100 percent (5/5)
 
-text
+```
 
 Этот ping проходит **через L3VNI**, используя маршрут `/32`, изученный через **EVPN Type-2 MAC+IP**. Успешный ping подтверждает, что маршрутизация между подсетями работает корректно без использования Type-5.
 
