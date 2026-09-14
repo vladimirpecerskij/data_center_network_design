@@ -456,7 +456,7 @@ router bgp 65004
    vrf TENANT
       rd auto
       route-target both auto
-      redistribute connected
+      
    !
    address-family evpn
       neighbor 10.1.2.0 activate
@@ -468,9 +468,7 @@ router bgp 65004
       neighbor 10.1.2.6 activate
       neighbor 10.1.2.14 activate
       network 10.0.4.1/32
-   !
-   address-family ipv4 vrf TENANT
-      redistribute connected
+
 !
 interface vlan10
 	description Gateway for VLAN 10
@@ -562,7 +560,7 @@ router bgp 65005
    vrf TENANT
       rd auto
       route-target both auto
-      redistribute connected
+     
    !
    address-family evpn
       neighbor 10.1.2.2 activate
@@ -574,9 +572,7 @@ router bgp 65005
       neighbor 10.1.2.8 activate
       neighbor 10.1.2.12 activate
       network 10.0.5.1/32
-   !
-   address-family ipv4 vrf TENANT
-      redistribute connected
+
     !
     vlan 20
    name BLUE_ZONE
@@ -676,7 +672,7 @@ router bgp 65006
    vrf TENANT
       rd auto
       route-target both auto
-      redistribute connected
+
    !
    address-family evpn
       neighbor 10.1.2.4 activate
@@ -689,8 +685,7 @@ router bgp 65006
       neighbor 10.1.2.16 activate
       network 10.0.6.1/32
    !
-   address-family ipv4 vrf TENANT
-      redistribute connected
+  
 ```
 
 ---
@@ -726,15 +721,24 @@ show bgp evpn route-type mac-ip
 
 Type-2 маршруты для всех хостов с указанием их IP-адресов.
 
-### 5.4. EVPN Type-5 (IP Prefix)
+### 5.4. Проверка отсутствия EVPN Type-5
 
-```
+Команда (на Leaf-01):
 show bgp evpn route-type ip-prefix
 ```
+**Пример вывода на Leaf-01:**
+BGP routing table information for VRF default
+Router identifier 10.0.4.1, local AS number 65004
+Route status codes: s - suppressed, * - valid, > - active, E - ECMP head, e - ECMP
+% - Pending BGP convergence
+Origin codes: i - IGP, e - EGP, ? - incomplete
+AS Path Attributes: Or-ID - Originator ID, C-LST - Cluster List, LL - Link Local Address
 
-**Вывод на Leaf-01:**
-- `172.16.10.0/24` — локально.
-- `172.16.20.0/24` — через Leaf-02 и Leaf-03 (ECMP).
+Network Next Hop Metric LocPref Weight Path
+```
+```
+(Вывод пустой.)
+```
 ### 5.5. Проверка EVPN-маршрутов Type-2 (MAC+IP)
 
 Команда (на Leaf-01):
@@ -748,24 +752,24 @@ show bgp evpn route-type mac-ip
 BGP routing table information for VRF default
 Router identifier 10.0.4.1, local AS number 65004
 Route status codes: s - suppressed, * - valid, > - active, E - ECMP head, e - ECMP
-% - Pending BGP convergence
+         % - Pending BGP convergence
 Origin codes: i - IGP, e - EGP, ? - incomplete
 AS Path Attributes: Or-ID - Originator ID, C-LST - Cluster List, LL - Link Local Address
 
-Network Next Hop Metric LocPref Weight Path
-
-RD: 10.0.4.1:10100 mac-ip 0050.7966.6800
-
-0 100 - i
-
-RD: 10.0.5.1:10100 mac-ip 0050.7966.6801 172.16.20.12
-10.0.5.1 0 100 0 65005 65001 i
+     Network                                          Next Hop         Metric  LocPref  Weight Path
+ * >  RD: 10.0.4.1:10100 mac-ip 0050.7966.680d 172.16.10.11
+                                                      -                 0       100       -      i
+ * >  RD: 10.0.5.1:10200 mac-ip 0050.7966.680e 172.16.20.12
+                                                      10.0.5.1          0       100       0      65005 65001 i
+ * >  RD: 10.0.6.1:10200 mac-ip 0050.7966.680f 172.16.20.13
+                                                      10.0.6.1          0       100       0      65006 65001 i
 
 ```
 
-**Пояснение:**
-- Первая запись — это **локальный MAC-адрес хоста** (Host-1) на Leaf-01, анонсированный в EVPN.
-- Вторая запись — это **удалённый MAC+IP** (Host-2 на Leaf-02), изученный через EVPN. Именно эта запись (`mac-ip ... 172.16.20.12`) позволяет Leaf-01 узнать, что хост `172.16.20.12` находится за VTEP `10.0.5.1`.
+**Пояснение **:
+Первая запись — локальный Host-1 (MAC 0050.7966.680d, IP 172.16.10.11), анонсируется в RD 10.0.4.1:10100 (VLAN 10 / VNI 10100).
+Вторая запись — удалённый Host-2 (MAC 0050.7966.680e, IP 172.16.20.12), изучен от VTEP 10.0.5.1, анонсирован в RD 10.0.5.1:10200 (VLAN 20 / VNI 10200).
+Третья запись — удалённый Host-3 (MAC 0050.7966.680f, IP 172.16.20.13), изучен от VTEP 10.0.6.1, RD 10.0.6.1:10200.
 
 ### 5.6. Проверка таблицы маршрутизации VRF TENANT
 
@@ -779,25 +783,28 @@ show ip route vrf TENANT
 **Пример вывода на Leaf-01:**
 VRF: TENANT
 Codes: C - connected, S - static, K - kernel,
-O - OSPF, IA - OSPF inter area, E1 - OSPF external type 1,
-E2 - OSPF external type 2, N1 - OSPF NSSA external type 1,
-N2 - OSPF NSSA external type2, B - Other BGP Routes,
-B I - iBGP, B E - eBGP, R - RIP, I L1 - IS-IS level 1,
-I L2 - IS-IS level 2, O3 - OSPFv3, A B - BGP Aggregate,
-A O - OSPF Summary, NG - Nexthop Group Static Route,
-V - VXLAN Control Service, M - Martian,
-DH - DHCP client installed default route,
-DP - Dynamic Policy Route, L - VRF Leaked,
-G - gRIBI, RC - Route Cache Route
+       O - OSPF, IA - OSPF inter area, E1 - OSPF external type 1,
+       E2 - OSPF external type 2, N1 - OSPF NSSA external type 1,
+       N2 - OSPF NSSA external type2, B - Other BGP Routes,
+       B I - iBGP, B E - eBGP, R - RIP, I L1 - IS-IS level 1,
+       I L2 - IS-IS level 2, O3 - OSPFv3, A B - BGP Aggregate,
+       A O - OSPF Summary, NG - Nexthop Group Static Route,
+       V - VXLAN Control Service, M - Martian,
+       DH - DHCP client installed default route,
+       DP - Dynamic Policy Route, L - VRF Leaked,
+       G  - gRIBI, RC - Route Cache Route
 
-C 172.16.10.0/24 is directly connected, Vlan10
-B E 172.16.20.12/32 [200/0] via 10.0.5.1, Vlan10
+ C        172.16.10.0/24 is directly connected, Vlan10
+ B E      172.16.20.12/32 [200/0] via 10.0.5.1, Vxlan1
+ B E      172.16.20.13/32 [200/0] via 10.0.6.1, Vxlan1
 
 ```
 
-**Пояснение:**
-- `C 172.16.10.0/24` — локальная подсеть Leaf-01.
-- `B E 172.16.20.12/32` — **удалённый host route**, изученный через EVPN Type-2 от VTEP `10.0.5.1` (Leaf-02). Это ключевое доказательство работы L3VNI через Type-2.
+**Пояснение**:
+
+C 172.16.10.0/24 — локально подключённая подсеть VLAN 10 (она появляется как connected за счёт SVI, но не анонсируется в EVPN).
+B E 172.16.20.12/32 — маршрут до Host-2, изученный через Type-2 MAC+IP от VTEP 10.0.5.1 (Leaf-02).
+B E 172.16.20.13/32 — маршрут до Host-3, изученный через Type-2 MAC+IP от VTEP 10.0.6.1 (Leaf-03).
 
 ### 5.7. Проверка отсутствия Type-5 маршрутов
 
@@ -988,9 +995,7 @@ show bgp evpn route-type ip-prefix
 
 **Вывод:**
 ```
- * >      RD: 10.0.4.1:10 ip-prefix 172.16.10.0/24
- * >Ec    RD: 10.0.5.1:10 ip-prefix 172.16.20.0/24
- * >Ec    RD: 10.0.6.1:10 ip-prefix 172.16.20.0/24
+Вывод: пустой.
 ```
 
 ### 6.8. Проверка VRF на Leaf
