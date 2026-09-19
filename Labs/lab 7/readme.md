@@ -1,6 +1,6 @@
 # Лабораторная работа №7. VXLAN. L3 VNI + ESI-LAG + BGP Dynamic Neighbors
 
-**Цель работы:** Настроить Overlay-сеть VXLAN EVPN с маршрутизацией между VNI (L3 VNI) и отказоустойчивым подключением клиента двумя линками к разным Leaf-коммутаторам через ESI-LAG. Underlay построить с использованием **BGP Dynamic Neighbors** (peer-group + peer-filter). Хосты — Linux VM (Ubuntu Server 20.04) с LACP bond.
+**Цель работы:** Настроить Overlay-сеть VXLAN EVPN с маршрутизацией между VNI (L3 VNI) и отказоустойчивым подключением **всех клиентов** двумя линками к разным Leaf-коммутаторам через ESI-LAG. Underlay построить с использованием **BGP Dynamic Neighbors** (peer-group + peer-filter). Хосты — Linux VM (Ubuntu Server 20.04) с LACP bond.
 
 ---
 
@@ -12,13 +12,13 @@
 - **Spine (уровень 2):** 3 коммутатора **Arista vEOS** (Spine-01, Spine-02, Spine-03).
 - **Leaf (уровень 3):** 3 коммутатора **Arista vEOS** (Leaf-01, Leaf-02, Leaf-03).
 - **Хосты (Linux VM, Ubuntu Server 20.04):**
-  - **Host-1** — подключён **двумя линками** к Leaf-01 (Eth4) и Leaf-02 (Eth5) через **ESI-LAG** + Linux bond (LACP 802.3ad).
-  - **Host-2** — подключён к Leaf-02 (Eth4).
-  - **Host-3** — подключён к Leaf-03 (Eth4).
+  - **Host-1** — 2 линка к Leaf-01 (Eth4) и Leaf-02 (Eth5) через **ESI-LAG #1** + Linux bond (LACP 802.3ad).
+  - **Host-2** — 2 линка к Leaf-02 (Eth4) и Leaf-03 (Eth5) через **ESI-LAG #2** + Linux bond (LACP 802.3ad).
+  - **Host-3** — 2 линка к Leaf-03 (Eth4) и Leaf-01 (Eth5) через **ESI-LAG #3** + Linux bond (LACP 802.3ad).
 
 Underlay-сеть настроена с использованием **eBGP Dynamic Neighbors**, BFD и MD5-аутентификации. Все Loopback-адреса (VTEP) доступны друг другу.
 
-> **Примечание:** Super-Spine не участвует в VXLAN-инкапсуляции, но передаёт BGP EVPN-маршруты между Spine.
+> **Примечание:** Super-Spine не участвует в VXLAN-инкапсуляции, но передаёт BGP EVPN-маршруты между Spine. Порт **E1/4** используется для подключения к Cloud (Management).
 
 ### Схема подключений Spine ↔ Leaf
 
@@ -34,6 +34,23 @@ Underlay-сеть настроена с использованием **eBGP Dyna
 | Spine-03 | Eth3 | Leaf-01 | Eth2 |
 | Spine-03 | Eth4 | Leaf-03 | Eth2 |
 
+### Схема подключений Leaf ↔ Хосты (ESI-LAG)
+
+| Хост | Линк | Leaf | Порт Leaf | Порт хоста | ESI | VLAN |
+|:---|:---|:---|:---|:---|:---|:---|
+| **Host-1** | Link1 | Leaf-01 | Eth4 | e0 | `...:0001:0001` | 10 |
+| **Host-1** | Link2 | Leaf-02 | Eth5 | e1 | `...:0001:0001` | 10 |
+| **Host-2** | Link1 | Leaf-02 | Eth4 | e0 | `...:0001:0002` | 20 |
+| **Host-2** | Link2 | Leaf-03 | Eth5 | e1 | `...:0001:0002` | 20 |
+| **Host-3** | Link1 | Leaf-03 | Eth4 | e0 | `...:0001:0003` | 20 |
+| **Host-3** | Link2 | Leaf-01 | Eth5 | e1 | `...:0001:0003` | 20 |
+
+### Super-Spine E1/4
+
+| Порт | Назначение | Подключение |
+|:---|:---|:---|
+| **E1/4** | Cloud (Management) | Cloud-нода в PNETLab |
+
 ---
 
 ## 2. План работ
@@ -44,11 +61,11 @@ Underlay-сеть настроена с использованием **eBGP Dyna
 4. **Настройка L2 VNI** — отдельный VNI для каждого клиентского VLAN.
 5. **Настройка L3 VNI** — VRF, SVI с Anycast Gateway, привязка VNI к VRF.
 6. **Настройка BGP EVPN** — анонс Type-2 (MAC/IP) и Type-5 (IP Prefix).
-7. **Подключение клиентов** — access-порты Leaf.
-8. **Настройка ESI-LAG** — Host-1 подключается двумя линками к Leaf-01 и Leaf-02.
-9. **Настройка LACP bond на хосте** — Linux VM (Ubuntu Server 20.04).
-10. **Верификация** — BGP EVPN, VRF, MAC/VNI, ESI, ping, traceroute.
-11. **Тест отказоустойчивости** — отключение одного линка Host-1, BGP-сессии, Spine.
+7. **Настройка ESI-LAG** — все 3 хоста подключаются двумя линками к разным Leaf.
+8. **Настройка LACP bond на хостах** — Linux VM (Ubuntu Server 20.04).
+9. **Настройка Cloud Mgmt** — на Super-Spine E1/4.
+10. **Верификация** — BGP EVPN, VRF, MAC/VNI, ESI (Type-1, Type-4), ping, traceroute.
+11. **Тест отказоустойчивости** — отключение линков каждого ESI-LAG, BGP-сессии, Spine.
 
 ---
 
@@ -88,19 +105,27 @@ Underlay-сеть настроена с использованием **eBGP Dyna
 | **Anycast Gateway VLAN 20** | 172.16.20.1/24 | Шлюз Host-2, Host-3 |
 | **Anycast MAC** | 0000.aaaa.bbbb | Общий виртуальный MAC |
 | **ESI (Host-1)** | 0000:0000:0000:0001:0001 | Ethernet Segment Identifier |
-| **ES-Import RT** | 00:01:00:01:00:01 | Route Target для ESI |
+| **ESI (Host-2)** | 0000:0000:0000:0001:0002 | Ethernet Segment Identifier |
+| **ESI (Host-3)** | 0000:0000:0000:0001:0003 | Ethernet Segment Identifier |
+| **ES-Import RT #1** | 00:01:00:01:00:01 | Route Target для ESI #1 |
+| **ES-Import RT #2** | 00:01:00:01:00:02 | Route Target для ESI #2 |
+| **ES-Import RT #3** | 00:01:00:01:00:03 | Route Target для ESI #3 |
 
 ### 3.4. Хосты (Linux VM, Ubuntu Server 20.04)
 
-| Хост | Leaf | Порт | VNI | IP / Маска | MAC | Шлюз |
-|:---|:---|:---|:---|:---|:---|:---|
-| Host-1 | Leaf-01 + Leaf-02 | Eth4 + Eth5 | 10100 | 172.16.10.11/24 | 0050.7966.680d | 172.16.10.1 |
-| Host-2 | Leaf-02 | Eth4 | 10200 | 172.16.20.12/24 | 0050.7966.680e | 172.16.20.1 |
-| Host-3 | Leaf-03 | Eth4 | 10200 | 172.16.20.13/24 | 0050.7966.680f | 172.16.20.1 |
+| Хост | Leaf | Порты Leaf | VNI | IP / Маска | Шлюз |
+|:---|:---|:---|:---|:---|:---|
+| Host-1 | Leaf-01 + Leaf-02 | Eth4 + Eth5 | 10100 | 172.16.10.11/24 | 172.16.10.1 |
+| Host-2 | Leaf-02 + Leaf-03 | Eth4 + Eth5 | 10200 | 172.16.20.12/24 | 172.16.20.1 |
+| Host-3 | Leaf-03 + Leaf-01 | Eth4 + Eth5 | 10200 | 172.16.20.13/24 | 172.16.20.1 |
 
-> Host-1 подключён **двумя линками** к Leaf-01 (Eth4) и Leaf-02 (Eth5) через **ESI-LAG** (Port-Channel10) + **Linux bond (LACP 802.3ad)** на стороне хоста.
+### 3.5. Cloud Mgmt
 
-### 3.5. Образы для хостов
+| Порт | IP-адрес | Назначение |
+|:---|:---|:---|
+| **Super-Spine E1/4** | 192.168.100.1/24 | Cloud Management |
+
+### 3.6. Образы для хостов
 
 | Хост | Образ | ID (ishare2) | Размер | Тип |
 |:---|:---|:---|:---|:---|
@@ -111,6 +136,7 @@ Underlay-сеть настроена с использованием **eBGP Dyna
 **Скачивание образа:**
 ```bash
 ishare2 pull qemu 254
+/opt/unetlab/wrappers/unl_wrapper -a fixpermissions
 ```
 
 ---
@@ -129,6 +155,7 @@ feature bgp
 feature bfd
 !
 interface Ethernet1/1
+  description Link-to-Spine-01
   no switchport
   mtu 9214
   ip address 10.1.1.0/31
@@ -136,6 +163,7 @@ interface Ethernet1/1
   no shutdown
 !
 interface Ethernet1/2
+  description Link-to-Spine-02
   no switchport
   mtu 9214
   ip address 10.1.1.2/31
@@ -143,10 +171,17 @@ interface Ethernet1/2
   no shutdown
 !
 interface Ethernet1/3
+  description Link-to-Spine-03
   no switchport
   mtu 9214
   ip address 10.1.1.4/31
   bfd interval 300 min_rx 300 multiplier 3
+  no shutdown
+!
+interface Ethernet1/4
+  description Cloud-Mgmt
+  no switchport
+  ip address 192.168.100.1/24
   no shutdown
 !
 interface Loopback0
@@ -202,9 +237,7 @@ router bgp 65000
 hostname Spine-01
 !
 spanning-tree mode mstp
-!
 service routing protocols model multi-agent
-!
 ip routing
 !
 interface Ethernet1
@@ -285,9 +318,7 @@ router bgp 65001
 hostname Spine-02
 !
 spanning-tree mode mstp
-!
 service routing protocols model multi-agent
-!
 ip routing
 !
 interface Ethernet1
@@ -368,9 +399,7 @@ router bgp 65002
 hostname Spine-03
 !
 spanning-tree mode mstp
-!
 service routing protocols model multi-agent
-!
 ip routing
 !
 interface Ethernet1
@@ -447,21 +476,21 @@ router bgp 65003
 
 ---
 
-### 4.3. Leaf (Arista vEOS) — BGP Dynamic Neighbors
+### 4.3. Leaf (Arista vEOS) — 3x ESI-LAG
 
-**Leaf-01 (AS 65004) — Host-1 (ESI-LAG)**
+**Leaf-01 (AS 65004) — Host-1 Link1 + Host-3 Link2**
 
 ```
 hostname Leaf-01
 !
 spanning-tree mode mstp
-!
 service routing protocols model multi-agent
-!
 ip routing
 !
 vlan 10
    name TENANT-A
+vlan 20
+   name TENANT-B
 !
 vrf instance TENANT
 !
@@ -486,6 +515,7 @@ interface Ethernet3
    ip address 10.1.2.7/31
    bfd interval 300 min-rx 300 multiplier 3
 !
+! ===== ESI-LAG #1: Host-1 (Link1) =====
 interface Ethernet4
    description Host-1 ESI-LAG Link1
    mtu 9214
@@ -499,11 +529,24 @@ interface Port-Channel10
       identifier 0000:0000:0000:0001:0001
       route-target import 00:01:00:01:00:01
 !
+! ===== ESI-LAG #3: Host-3 (Link2) =====
+interface Ethernet5
+   description Host-3 ESI-LAG Link2
+   mtu 9214
+   channel-group 30 mode active
+!
+interface Port-Channel30
+   description Host-3 ESI-LAG
+   switchport mode access
+   switchport access vlan 20
+   evpn ethernet-segment
+      identifier 0000:0000:0000:0001:0003
+      route-target import 00:01:00:01:00:03
+!
 interface Loopback0
    ip address 10.0.4.1/32
 !
 interface Loopback1
-   description Router-MAC-for-TENANT
    vrf TENANT
    ip address 10.10.10.1/32
 !
@@ -512,10 +555,16 @@ interface Vlan10
    vrf TENANT
    ip address virtual 172.16.10.1/24
 !
+interface Vlan20
+   description Anycast-Gateway-VLAN20
+   vrf TENANT
+   ip address virtual 172.16.20.1/24
+!
 interface Vxlan1
    vxlan source-interface Loopback0
    vxlan udp-port 4789
    vxlan vlan 10 vni 10100
+   vxlan vlan 20 vni 10200
    vxlan vrf TENANT vni 50000
 !
 ip virtual-router mac-address 0000.aaaa.bbbb
@@ -550,6 +599,11 @@ router bgp 65004
       route-target both auto
       redistribute learned
    !
+   vlan 20
+      rd auto
+      route-target both auto
+      redistribute learned
+   !
    vrf TENANT
       rd auto
       route-target both auto
@@ -566,20 +620,17 @@ router bgp 65004
       redistribute connected
 ```
 
-**Leaf-02 (AS 65005) — Host-1 (ESI-LAG) + Host-2**
+**Leaf-02 (AS 65005) — Host-2 Link1 + Host-1 Link2**
 
 ```
 hostname Leaf-02
 !
 spanning-tree mode mstp
-!
 service routing protocols model multi-agent
-!
 ip routing
 !
 vlan 10
    name TENANT-A
-!
 vlan 20
    name TENANT-B
 !
@@ -606,11 +657,21 @@ interface Ethernet3
    ip address 10.1.2.13/31
    bfd interval 300 min-rx 300 multiplier 3
 !
+! ===== ESI-LAG #2: Host-2 (Link1) =====
 interface Ethernet4
-   description Host-2
+   description Host-2 ESI-LAG Link1
+   mtu 9214
+   channel-group 20 mode active
+!
+interface Port-Channel20
+   description Host-2 ESI-LAG
    switchport mode access
    switchport access vlan 20
+   evpn ethernet-segment
+      identifier 0000:0000:0000:0001:0002
+      route-target import 00:01:00:01:00:02
 !
+! ===== ESI-LAG #1: Host-1 (Link2) =====
 interface Ethernet5
    description Host-1 ESI-LAG Link2
    mtu 9214
@@ -628,7 +689,6 @@ interface Loopback0
    ip address 10.0.5.1/32
 !
 interface Loopback1
-   description Router-MAC-for-TENANT
    vrf TENANT
    ip address 10.10.10.2/32
 !
@@ -702,15 +762,13 @@ router bgp 65005
       redistribute connected
 ```
 
-**Leaf-03 (AS 65006) — Host-3**
+**Leaf-03 (AS 65006) — Host-3 Link1 + Host-2 Link2**
 
 ```
 hostname Leaf-03
 !
 spanning-tree mode mstp
-!
 service routing protocols model multi-agent
-!
 ip routing
 !
 vlan 20
@@ -739,16 +797,38 @@ interface Ethernet3
    ip address 10.1.2.5/31
    bfd interval 300 min-rx 300 multiplier 3
 !
+! ===== ESI-LAG #3: Host-3 (Link1) =====
 interface Ethernet4
-   description Host-3
+   description Host-3 ESI-LAG Link1
+   mtu 9214
+   channel-group 30 mode active
+!
+interface Port-Channel30
+   description Host-3 ESI-LAG
    switchport mode access
    switchport access vlan 20
+   evpn ethernet-segment
+      identifier 0000:0000:0000:0001:0003
+      route-target import 00:01:00:01:00:03
+!
+! ===== ESI-LAG #2: Host-2 (Link2) =====
+interface Ethernet5
+   description Host-2 ESI-LAG Link2
+   mtu 9214
+   channel-group 20 mode active
+!
+interface Port-Channel20
+   description Host-2 ESI-LAG
+   switchport mode access
+   switchport access vlan 20
+   evpn ethernet-segment
+      identifier 0000:0000:0000:0001:0002
+      route-target import 00:01:00:01:00:02
 !
 interface Loopback0
    ip address 10.0.6.1/32
 !
 interface Loopback1
-   description Router-MAC-for-TENANT
    vrf TENANT
    ip address 10.10.10.3/32
 !
@@ -813,46 +893,184 @@ router bgp 65006
 
 ---
 
-## 5. Верификация
+## 5. Настройка хостов (Linux VM, Ubuntu Server 20.04)
 
-### 5.1. BGP Dynamic Neighbors — проверка соседей
+### 5.1. Скачивание образа
+
+**На PNETLab-сервере:**
+```bash
+ishare2 search ubuntu-server
+ishare2 pull qemu 254
+/opt/unetlab/wrappers/unl_wrapper -a fixpermissions
+```
+
+**В PNETLab:**
+- Add Node → QEMU → выбрать `linux-ubuntu-server-20.04`.
+- Для **каждого хоста** указать **2 сетевых интерфейса**.
+
+### 5.2. Настройка Host-1 (Linux bond)
+
+**Файл `/etc/netplan/01-bond.yaml`:**
+```yaml
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    e0:
+      dhcp4: no
+    e1:
+      dhcp4: no
+  bonds:
+    bond0:
+      interfaces: [e0, e1]
+      addresses: [172.16.10.11/24]
+      routes:
+        - to: default
+          via: 172.16.10.1
+      parameters:
+        mode: 802.3ad
+        lacp-rate: fast
+        mii-monitor-interval: 100
+        transmit-hash-policy: layer3+4
+```
+
+**Применить:**
+```bash
+sudo netplan apply
+```
+
+### 5.3. Настройка Host-2 (Linux bond)
+
+**Файл `/etc/netplan/01-bond.yaml`:**
+```yaml
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    e0:
+      dhcp4: no
+    e1:
+      dhcp4: no
+  bonds:
+    bond0:
+      interfaces: [e0, e1]
+      addresses: [172.16.20.12/24]
+      routes:
+        - to: default
+          via: 172.16.20.1
+      parameters:
+        mode: 802.3ad
+        lacp-rate: fast
+        mii-monitor-interval: 100
+        transmit-hash-policy: layer3+4
+```
+
+### 5.4. Настройка Host-3 (Linux bond)
+
+**Файл `/etc/netplan/01-bond.yaml`:**
+```yaml
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    e0:
+      dhcp4: no
+    e1:
+      dhcp4: no
+  bonds:
+    bond0:
+      interfaces: [e0, e1]
+      addresses: [172.16.20.13/24]
+      routes:
+        - to: default
+          via: 172.16.20.1
+      parameters:
+        mode: 802.3ad
+        lacp-rate: fast
+        mii-monitor-interval: 100
+        transmit-hash-policy: layer3+4
+```
+
+### 5.5. Проверка bond
+
+```bash
+cat /proc/net/bonding/bond0
+```
+
+**Вывод:**
+```
+Bonding Mode: IEEE 802.3ad Dynamic link aggregation
+Transmit Hash Policy: layer3+4 (1)
+MII Status: up
+
+Slave Interface: e0
+MII Status: up
+Speed: 10000 Mbps
+
+Slave Interface: e1
+MII Status: up
+Speed: 10000 Mbps
+```
+
+---
+
+## 6. Верификация
+
+### 6.1. BGP Dynamic Neighbors
 
 ```
 show bgp summary
 ```
 
-**Ожидаемый вывод:** все соседи должны быть **динамически обнаружены** (`Estab`), без явной записи `neighbor X.X.X.X remote-as ...` в конфиге.
+**Вывод:** все соседи **динамически обнаружены** (`Estab`).
 
-### 5.2. BGP Dynamic Neighbors — проверка peer-group
-
-```
-show bgp peer-group
-show bgp peer-group UNDERLAY
-show bgp peer-group EVPN
-```
-
-### 5.3. BGP EVPN-сессии
+### 6.2. EVPN-сессии
 
 ```
 show bgp evpn summary
 ```
 
-Все соседи должны быть в состоянии `Estab`, `PfxRcd` > 0.
+Все соседи в состоянии `Estab`, `PfxRcd` > 0.
 
-### 5.4. L2 VNI — таблица MAC
+### 6.3. ESI-LAG: Type-4 (Ethernet Segment)
+
+```
+show bgp evpn route-type ethernet-segment
+```
+
+**Вывод:** на каждом Leaf видны Type-4 маршруты для трёх ESI:
+- ESI #1 (`...:0001:0001`) — Leaf-01 + Leaf-02
+- ESI #2 (`...:0001:0002`) — Leaf-02 + Leaf-03
+- ESI #3 (`...:0001:0003`) — Leaf-03 + Leaf-01
+
+### 6.4. ESI-LAG: Type-1 (Auto-Discovery)
+
+```
+show bgp evpn route-type auto-discovery
+```
+
+**Вывод:** AD-маршруты от обоих Leaf для каждого ESI.
+
+### 6.5. Port-Channel и LACP
+
+```
+show port-channel 10
+show port-channel 20
+show port-channel 30
+show lacp neighbor
+```
+
+Все Port-Channel `up`, LACP-соседи — Host-1, Host-2, Host-3.
+
+### 6.6. L2 VNI — таблица MAC
 
 ```
 show vxlan address-table
 ```
 
-**Вывод на Leaf-01:**
-```
-VLAN  VNI    MAC              Type   VTEP
-20    10200  0050.7966.680e   EVPN   10.0.5.1
-20    10200  0050.7966.680f   EVPN   10.0.6.1
-```
+**Вывод:** MAC-адреса всех хостов в VNI 10100, 10200.
 
-### 5.5. EVPN Type-2 (MAC/IP)
+### 6.7. EVPN Type-2 (MAC/IP)
 
 ```
 show bgp evpn route-type mac-ip
@@ -860,7 +1078,7 @@ show bgp evpn route-type mac-ip
 
 Type-2 маршруты для всех хостов с указанием их IP-адресов.
 
-### 5.6. EVPN Type-5 (IP Prefix)
+### 6.8. EVPN Type-5 (IP Prefix)
 
 ```
 show bgp evpn route-type ip-prefix
@@ -870,32 +1088,7 @@ show bgp evpn route-type ip-prefix
 - `172.16.10.0/24` — локально.
 - `172.16.20.0/24` — через Leaf-02 и Leaf-03 (ECMP).
 
-### 5.7. ESI-LAG: Type-4 (Ethernet Segment)
-
-```
-show bgp evpn route-type ethernet-segment
-```
-
-**Ожидаемый вывод:** на Leaf-01 и Leaf-02 должны быть видны Type-4 маршруты с **одинаковым ESI** `0000:0000:0000:0001:0001`.
-
-### 5.8. ESI-LAG: Type-1 (Auto-Discovery)
-
-```
-show bgp evpn route-type auto-discovery
-```
-
-**Ожидаемый вывод:** AD-маршруты от обоих Leaf (Leaf-01 и Leaf-02) с одним ESI.
-
-### 5.9. Port-Channel и LACP
-
-```
-show port-channel 10
-show lacp neighbor
-```
-
-Port-Channel должен быть `up`, LACP-сосед — Host-1.
-
-### 5.10. VRF-маршрутизация
+### 6.9. VRF-маршрутизация
 
 ```
 show ip route vrf TENANT
@@ -908,15 +1101,15 @@ B E 172.16.20.0/24 [200/0] via 10.0.5.1, Vxlan1
                              via 10.0.6.1, Vxlan1
 ```
 
-### 5.11. L3 VNI
+### 6.10. L3 VNI
 
 ```
 show vxlan vrf
 ```
 
-VNI 50000 для VRF TENANT должен быть `Up`.
+VNI 50000 для VRF TENANT в состоянии `Up`.
 
-### 5.12. Ping между VNI
+### 6.11. Ping между VNI
 
 **Host-1 → Host-2:**
 ```
@@ -941,9 +1134,9 @@ Success rate is 100 percent (5/5)
 
 ---
 
-## 6. Проверка traceroute между VNI
+## 7. Проверка traceroute между VNI
 
-### 6.1. Traceroute с Host-1 (VLAN 10) на Host-2 (VLAN 20)
+### 7.1. Traceroute с Host-1 (VLAN 10) на Host-2 (VLAN 20)
 
 **На Host-1:**
 ```
@@ -957,14 +1150,7 @@ traceroute to 172.16.20.12, 30 hops max, 60 byte packets
  2  172.16.20.12   5.678 ms  5.890 ms  6.123 ms    ← Host-2 через L3 VNI
 ```
 
-**Что происходит:**
-1. Host-1 отправляет пакет на шлюз `172.16.10.1` (Anycast Gateway Leaf-01).
-2. Leaf-01 выполняет L3-маршрутизацию в VRF TENANT.
-3. Leaf-01 видит, что `172.16.20.0/24` находится за VTEP Leaf-02 (Type-5).
-4. Leaf-01 инкапсулирует пакет в L3 VNI 50000 и отправляет к Leaf-02.
-5. Leaf-02 декапсулирует, маршрутизирует и передаёт Host-2.
-
-### 6.2. Traceroute с Host-2 на Host-3 (внутри одного VNI)
+### 7.2. Traceroute с Host-2 на Host-3 (внутри одного VNI)
 
 **На Host-2:**
 ```
@@ -977,251 +1163,32 @@ traceroute to 172.16.20.13, 30 hops max, 60 byte packets
  1  172.16.20.13   2.345 ms  2.567 ms  2.789 ms    ← Host-3 через L2 VNI 10200
 ```
 
-Host-2 и Host-3 в одном VNI — трафик идёт напрямую через L2 VXLAN, без L3-маршрутизации.
-
----
-
-## 7. Настройка хостов (Linux VM, Ubuntu Server 20.04)
-
-### 7.1. Скачивание образа
-
-**На PNETLab-сервере:**
-```bash
-ishare2 search ubuntu-server
-ishare2 pull qemu 254
-```
-
-**В PNETLab:**
-- Main → QEMU Images → убедиться, что `linux-ubuntu-server-20.04` появился.
-- Add Node → QEMU → выбрать образ.
-- Настроить 2 сетевых интерфейса для Host-1.
-
-### 7.2. Первичная настройка Host-1
-
-**Войти в образ** (логин/пароль: `ubuntu`/`ubuntu` или `root`/`root`).
-
-**Отключить cloud-init (если мешает):**
-```bash
-sudo touch /etc/cloud/cloud-init.disabled
-```
-
-**Отключить DHCP на интерфейсах:**
-```bash
-sudo dhclient -r ens3
-sudo dhclient -r ens4
-```
-
-**Проверить интерфейсы:**
-```bash
-ip link show
-```
-
-Должны быть видны `ens3` и `ens4` (или `eth0`/`eth1`).
-
-### 7.3. Установка пакетов
-
-```bash
-sudo apt update
-sudo apt install -y ifenslave ethtool iproute2 net-tools
-```
-
-### 7.4. Настройка bond через Netplan (Ubuntu 20.04)
-
-**Файл `/etc/netplan/01-bond.yaml`:**
-```yaml
-network:
-  version: 2
-  renderer: networkd
-  ethernets:
-    ens3:
-      dhcp4: no
-    ens4:
-      dhcp4: no
-  bonds:
-    bond0:
-      interfaces:
-        - ens3
-        - ens4
-      parameters:
-        mode: 802.3ad
-        lacp-rate: fast
-        mii-monitor-interval: 100
-        transmit-hash-policy: layer3+4
-      addresses:
-        - 172.16.10.11/24
-      routes:
-        - to: default
-          via: 172.16.10.1
-      nameservers:
-        addresses: [8.8.8.8]
-```
-
-**Применить:**
-```bash
-sudo netplan apply
-```
-
-### 7.5. Проверка bond на Host-1
-
-**Статус bond:**
-```bash
-cat /proc/net/bonding/bond0
-```
-
-**Ожидаемый вывод:**
-```
-Ethernet Channel Bonding Driver: v5.15.0
-Bonding Mode: IEEE 802.3ad Dynamic link aggregation
-Transmit Hash Policy: layer3+4 (1)
-MII Status: up
-MII Polling Interval (ms): 100
-Up Delay (ms): 0
-Down Delay (ms): 0
-
-802.3ad info
-LACP rate: fast
-Min links: 0
-Aggregator selection policy (ad_select): stable
-
-Slave Interface: ens3
-MII Status: up
-Speed: 10000 Mbps
-Duplex: full
-Link Failure Count: 0
-Permanent HW addr: 00:50:79:66:68:0d
-Aggregator ID: 1
-Actor Churn State: none
-Partner Churn State: none
-
-Slave Interface: ens4
-MII Status: up
-Speed: 10000 Mbps
-Duplex: full
-Link Failure Count: 0
-Permanent HW addr: 00:50:79:66:68:0e
-Aggregator ID: 1
-Actor Churn State: none
-Partner Churn State: none
-```
-
-**IP-адрес:**
-```bash
-ip addr show bond0
-```
-
-**Ожидаемый вывод:**
-```
-bond0: <BROADCAST,MULTICAST,MASTER,UP,LOWER_UP> mtu 9214 qdisc noqueue state UP
-    link/ether 00:50:79:66:68:0d brd ff:ff:ff:ff:ff:ff
-    inet 172.16.10.11/24 brd 172.16.10.255 scope global bond0
-       valid_lft forever preferred_lft forever
-```
-
-**Связность со шлюзом:**
-```bash
-ping -c 5 172.16.10.1
-```
-
-**Ожидаемый результат:**
-```
-PING 172.16.10.1 (172.16.10.1) 56(84) bytes of data.
-64 bytes from 172.16.10.1: icmp_seq=1 ttl=64 time=1.23 ms
-64 bytes from 172.16.10.1: icmp_seq=2 ttl=64 time=0.98 ms
-...
---- 172.16.10.1 ping statistics ---
-5 packets transmitted, 5 received, 0% packet loss, time 4005ms
-```
-
-### 7.6. Настройка Host-2 и Host-3 (одним линком)
-
-Host-2 и Host-3 подключаются **одним линком** — bond не нужен. Настройка через Netplan:
-
-**Файл `/etc/netplan/01-netcfg.yaml` для Host-2:**
-```yaml
-network:
-  version: 2
-  renderer: networkd
-  ethernets:
-    ens3:
-      addresses:
-        - 172.16.20.12/24
-      routes:
-        - to: default
-          via: 172.16.20.1
-      nameservers:
-        addresses: [8.8.8.8]
-```
-
-**Для Host-3:**
-```yaml
-network:
-  version: 2
-  renderer: networkd
-  ethernets:
-    ens3:
-      addresses:
-        - 172.16.20.13/24
-      routes:
-        - to: default
-          via: 172.16.20.1
-      nameservers:
-        addresses: [8.8.8.8]
-```
-
 ---
 
 ## 8. Расширенный тест отказоустойчивости ESI-LAG
 
 ### 8.1. Цель теста
 
-Проверить, что при отключении **одного из двух линков Host-1**:
-- L2-связность **не теряется** (трафик переключается на оставшийся линк).
+Проверить, что при отключении **одного из двух линков любого хоста**:
+- L2-связность **не теряется**.
 - L3-маршрутизация между VNI **сохраняется**.
-- ESI-LAG на Leaf-01 и Leaf-02 **корректно переключает** трафик.
+- ESI-LAG на Leaf корректно переключает трафик.
 
 ### 8.2. Подготовка к тесту
 
-**На Host-1 запустить непрерывный ping до Host-2 с логированием:**
+**На Host-1 запустить непрерывный ping до Host-2:**
 ```bash
 ping -i 0.2 172.16.20.12 | tee /var/log/ping-host2.log
 ```
 
-**На Host-1 запустить второй ping до Host-3:**
+**На Host-2 запустить непрерывный ping до Host-3:**
 ```bash
 ping -i 0.2 172.16.20.13 | tee /var/log/ping-host3.log
 ```
 
-### 8.3. Записать базовое состояние
+### 8.3. Тест №1 — отключение линка Host-1 на Leaf-01
 
 **На Leaf-01:**
-```
-show port-channel 10
-show lacp neighbor
-show bgp evpn route-type ethernet-segment
-show bgp evpn route-type auto-discovery
-```
-
-**На Leaf-02:**
-```
-show port-channel 10
-show lacp neighbor
-show bgp evpn route-type ethernet-segment
-show bgp evpn route-type auto-discovery
-```
-
-**Ожидаемый вывод на Leaf-01 (Port-Channel):**
-```
-Port-Channel10 is up, line protocol is up (connected)
-  Hardware is Lag, address is 0050.7966.680d
-  Description: Host-1 ESI-LAG
-  Member ports: Ethernet4 (Active)
-  ESI: 0000:0000:0000:0001:0001
-  ES-Import RT: 00:01:00:01:00:01
-```
-
-### 8.4. Тест №1 — отключение линка на Leaf-01
-
-**На Leaf-01 выполнить:**
 ```
 configure terminal
 interface Ethernet4
@@ -1229,75 +1196,64 @@ interface Ethernet4
 end
 ```
 
-**Что происходит:**
-- LACP-сессия на Leaf-01 Eth4 рвётся.
-- ESI-LAG на Leaf-01 переходит в состояние `down`.
-- Leaf-02 остаётся единственным активным участником ESI.
-- Type-1 (AD) и Type-4 (ES) маршруты обновляются через EVPN.
-- Трафик Host-1 переключается на Leaf-02 (Eth5).
-
 **Проверить на Leaf-01:**
 ```
 show port-channel 10
-show bgp evpn route-type ethernet-segment
 ```
 
-**Ожидаемый вывод на Leaf-01 (Port-Channel down):**
+**Вывод:** Port-Channel10 `down`.
+
+**Проверить на Leaf-02:**
 ```
-Port-Channel10 is down, line protocol is down
-  Member ports: Ethernet4 (Inactive)
-  ESI: 0000:0000:0000:0001:0001
+show port-channel 10
 ```
 
-**Проверить логи ping на Host-1:**
+**Вывод:** Port-Channel10 `up` (единственный активный).
+
+**Проверить ping на Host-1:**
 ```bash
 tail -f /var/log/ping-host2.log
 ```
 
-**Ожидаемый результат:**
-```
-64 bytes from 172.16.20.12: icmp_seq=100 ttl=63 time=1.23 ms
-64 bytes from 172.16.20.12: icmp_seq=101 ttl=63 time=1.45 ms
-64 bytes from 172.16.20.12: icmp_seq=102 ttl=63 time=2.10 ms   ← линк отключён
-64 bytes from 172.16.20.12: icmp_seq=103 ttl=63 time=1.89 ms   ← переключение на Leaf-02
-64 bytes from 172.16.20.12: icmp_seq=104 ttl=63 time=1.34 ms
-...
-```
+**Результат:** потери ≤ 2 пакетов, трафик идёт через Leaf-02.
 
-> **Важно:** Потери могут быть **не более 1–2 пакетов** (время переключения LACP/ESI ~100–300 мс). Если потерь больше — проверьте `timers bgp 1 3` и BFD-таймеры.
+### 8.4. Тест №2 — отключение линка Host-2 на Leaf-02
 
-### 8.5. Восстановление линка на Leaf-01
-
-**На Leaf-01 выполнить:**
+**На Leaf-02:**
 ```
 configure terminal
 interface Ethernet4
-   no shutdown
+   shutdown
 end
 ```
 
-**Проверить логи ping:**
-```bash
-tail -f /var/log/ping-host2.log
+**Проверить на Leaf-03:**
+```
+show port-channel 20
 ```
 
-**Ожидаемый результат:**
+**Вывод:** Port-Channel20 `up` (единственный активный).
+
+### 8.5. Тест №3 — отключение линка Host-3 на Leaf-03
+
+**На Leaf-03:**
 ```
-64 bytes from 172.16.20.12: icmp_seq=500 ttl=63 time=1.23 ms
-64 bytes from 172.16.20.12: icmp_seq=501 ttl=63 time=1.45 ms   ← линк восстановлен
-64 bytes from 172.16.20.12: icmp_seq=502 ttl=63 time=0.98 ms   ← трафик через оба линка
+configure terminal
+interface Ethernet4
+   shutdown
+end
 ```
 
-### 8.6. Тест №2 — отключение линка на Leaf-02
+**Проверить на Leaf-01:**
+```
+show port-channel 30
+```
 
-Повторить тест, но отключить линк на **Leaf-02** (`interface Ethernet5 shutdown`). Убедиться, что:
-- Трафик переключается на Leaf-01.
-- Ping продолжает проходить.
-- После восстановления линка трафик снова распределяется.
+**Вывод:** Port-Channel30 `up` (единственный активный).
 
-### 8.7. Тест №3 — отключение BGP-сессии между Leaf-01 и Spine
+### 8.6. Тест №4 — отключение BGP-сессии Leaf-01 ↔ Spine-01
 
-**На Leaf-01 выполнить:**
+**На Leaf-01:**
 ```
 configure terminal
 interface Ethernet1
@@ -1305,20 +1261,16 @@ interface Ethernet1
 end
 ```
 
-**Проверить на Leaf-01:**
+**Проверить:**
 ```
 show bgp summary
-show ip route bgp
 ```
 
-**Ожидаемый результат:**
-- BGP-сосед `10.1.2.0` (Spine-01) — `Idle` или `Active`.
-- BGP-соседи `10.1.2.6` (Spine-02) и `10.1.2.14` (Spine-03) — `Estab`.
-- Маршруты до VTEP других Leaf — через Spine-02 и Spine-03 (ECMP).
+Сосед `10.1.2.0` — `Idle`, остальные — `Estab`.
 
-### 8.8. Тест №4 — отключение Spine-01 целиком
+### 8.7. Тест №5 — отключение Spine-01
 
-**На Spine-01 выполнить:**
+**На Spine-01:**
 ```
 configure terminal
 interface Ethernet1
@@ -1335,44 +1287,21 @@ end
 **Проверить на Super-Spine:**
 ```
 show ip bgp summary
-show ip route bgp
 ```
 
-**Ожидаемый результат:**
-- Сосед `10.1.1.1` (Spine-01) — `Idle`.
-- Соседи `10.1.1.3` (Spine-02) и `10.1.1.5` (Spine-03) — `Estab`.
-- Маршруты до Leaf — через Spine-02 и Spine-03.
+Сосед `10.1.1.1` — `Idle`, остальные — `Estab`.
 
-### 8.9. Сводная таблица тестов отказоустойчивости
+### 8.8. Сводная таблица тестов
 
-| № | Что отключаем | Где | Ожидаемое время переключения | Ожидаемые потери |
+| № | Что отключаем | Где | Время переключения | Потери |
 |:---|:---|:---|:---|:---|
-| 1 | Линк Host-1 → Leaf-01 | Leaf-01 Eth4 | 100–300 мс (LACP/ESI) | ≤ 2 пакета |
-| 2 | Линк Host-1 → Leaf-02 | Leaf-02 Eth5 | 100–300 мс (LACP/ESI) | ≤ 2 пакета |
-| 3 | BGP-сессия Leaf-01 ↔ Spine-01 | Leaf-01 Eth1 | 150 мс (BFD) | ≤ 1 пакет |
-| 4 | Spine-01 целиком | Spine-01 все порты | 150 мс (BFD) | ≤ 2 пакета |
-| 5 | Super-Spine | NEXUS-9000 все порты | 150 мс (BFD) | ≤ 5 пакетов |
+| 1 | Линк Host-1 → Leaf-01 | Leaf-01 Eth4 | 100–300 мс | ≤ 2 пакета |
+| 2 | Линк Host-2 → Leaf-02 | Leaf-02 Eth4 | 100–300 мс | ≤ 2 пакета |
+| 3 | Линк Host-3 → Leaf-03 | Leaf-03 Eth4 | 100–300 мс | ≤ 2 пакета |
+| 4 | BGP-сессия Leaf-01 ↔ Spine-01 | Leaf-01 Eth1 | 150 мс (BFD) | ≤ 1 пакет |
+| 5 | Spine-01 целиком | Spine-01 | 150 мс (BFD) | ≤ 2 пакета |
 
-### 8.10. Анализ логов после теста
-
-**Подсчитать потери пакетов:**
-```bash
-grep -c "icmp_seq" /var/log/ping-host2.log
-grep -c "100% packet loss" /var/log/ping-host2.log
-```
-
-**Найти моменты переключения:**
-```bash
-grep -n "time=" /var/log/ping-host2.log | awk -F'time=' '{print $2}' | sort -n | tail -10
-```
-
-**Построить график задержек (опционально):**
-```bash
-cat /var/log/ping-host2.log | grep "time=" | awk -F'time=' '{print $2}' | awk '{print $1}' > /tmp/delays.txt
-gnuplot -e "plot '/tmp/delays.txt' with lines title 'Ping delay (ms)'"
-```
-
-### 8.11. Возможные проблемы и решения
+### 8.9. Возможные проблемы и решения
 
 | Проблема | Причина | Решение |
 |:---|:---|:---|
@@ -1400,15 +1329,15 @@ gnuplot -e "plot '/tmp/delays.txt' with lines title 'Ping delay (ms)'"
 | **`ebgp-multihop 3`** | Нет | Есть |
 | **`next-hop-unchanged`** | Нет | Есть |
 | **`spanning-tree mode mstp`** | Нет | Есть |
-| **ESI-LAG** | Нет | **Есть** (Host-1 → Leaf-01 + Leaf-02) |
-| **Linux bond (LACP)** | Нет | **Есть** (Host-1, Ubuntu 20.04) |
+| **ESI-LAG** | Нет | **Есть** (3 ESI-LAG на 3 хоста) |
+| **Linux bond (LACP)** | Нет | **Есть** (на всех 3 хостах) |
 | **Тест отказоустойчивости** | Нет | **Есть** (5 тестов) |
 
 ---
 
 ## 10. Итоговый чек-лист сдачи лабораторной работы
 
-| № | Что проверяется | Как проверяется | Ожидаемый результат |
+| № | Что проверяется | Команда | Результат |
 |:---|:---|:---|:---|
 | 1 | Underlay BGP (Dynamic Neighbors) | `show bgp summary` | Все соседи `Estab` |
 | 2 | Peer-group и peer-filter | `show bgp peer-group` | `EVPN`, `UNDERLAY` активны |
@@ -1419,21 +1348,26 @@ gnuplot -e "plot '/tmp/delays.txt' with lines title 'Ping delay (ms)'"
 | 7 | VRF TENANT | `show ip route vrf TENANT` | Маршруты через Vxlan1 |
 | 8 | EVPN Type-2 | `show bgp evpn route-type mac-ip` | MAC/IP маршруты |
 | 9 | EVPN Type-5 | `show bgp evpn route-type ip-prefix` | IP Prefix маршруты |
-| 10 | **ESI-LAG Type-4** | `show bgp evpn route-type ethernet-segment` | ESI `0000:0000:0000:0001:0001` |
-| 11 | **ESI-LAG Type-1** | `show bgp evpn route-type auto-discovery` | AD от обоих Leaf |
-| 12 | **Port-Channel** | `show port-channel 10` | `up` |
-| 13 | **LACP** | `show lacp neighbor` | Host-1 |
-| 14 | **Bond на Host-1** | `cat /proc/net/bonding/bond0` | Mode `802.3ad`, оба slave `up` |
-| 15 | Ping между VNI | `ping 172.16.20.12` | `100% success` |
-| 16 | **Отказоустойчивость ESI-LAG** | `shutdown` Eth4 на Leaf-01 | Ping не теряется |
-| 17 | **Отказоустойчивость Underlay** | `shutdown` Eth1 на Leaf-01 | Ping не теряется |
-| 18 | **Отказоустойчивость Spine** | `shutdown` все порты Spine-01 | Ping не теряется |
+| 10 | **ESI Type-4 #1** | `show bgp evpn route-type ethernet-segment` | ESI `...:0001:0001` |
+| 11 | **ESI Type-4 #2** | `show bgp evpn route-type ethernet-segment` | ESI `...:0001:0002` |
+| 12 | **ESI Type-4 #3** | `show bgp evpn route-type ethernet-segment` | ESI `...:0001:0003` |
+| 13 | **ESI Type-1** | `show bgp evpn route-type auto-discovery` | AD от обоих Leaf |
+| 14 | **Port-Channel 10/20/30** | `show port-channel 10/20/30` | Все `up` |
+| 15 | **LACP** | `show lacp neighbor` | Host-1/2/3 |
+| 16 | **Bond на Host-1** | `cat /proc/net/bonding/bond0` | Mode `802.3ad` |
+| 17 | **Bond на Host-2** | `cat /proc/net/bonding/bond0` | Mode `802.3ad` |
+| 18 | **Bond на Host-3** | `cat /proc/net/bonding/bond0` | Mode `802.3ad` |
+| 19 | Ping между VNI | `ping 172.16.20.12` | `100% success` |
+| 20 | **Отказоустойчивость #1** | `shutdown` Eth4 на Leaf-01 | Ping не теряется |
+| 21 | **Отказоустойчивость #2** | `shutdown` Eth4 на Leaf-02 | Ping не теряется |
+| 22 | **Отказоустойчивость #3** | `shutdown` Eth4 на Leaf-03 | Ping не теряется |
+| 23 | **Cloud Mgmt** | `ping 192.168.100.x` | Связность с Cloud |
 
 ---
 
 ## 11. Заключение
 
-В ходе работы настроена Overlay-сеть на основе VXLAN EVPN **с маршрутизацией между VNI (L3 VNI)**, **отказоустойчивым подключением клиента через ESI-LAG**, **BGP Dynamic Neighbors** в Underlay и **Linux bond (LACP)** на стороне хоста:
+В ходе работы настроена Overlay-сеть на основе VXLAN EVPN **с маршрутизацией между VNI (L3 VNI)**, **отказоустойчивым подключением всех клиентов через ESI-LAG**, **BGP Dynamic Neighbors** в Underlay и **Linux bond (LACP)** на стороне хостов:
 
 - **BGP Dynamic Neighbors** (`bgp listen range` + `peer-group` + `peer-filter`) упрощают конфигурацию Underlay: Spine и Leaf автоматически обнаруживают соседей по ASN.
 - **BFD** с таймерами `300 min-rx 300 multiplier 3` обеспечивает быстрое обнаружение отказов (~900 мс).
@@ -1442,8 +1376,12 @@ gnuplot -e "plot '/tmp/delays.txt' with lines title 'Ping delay (ms)'"
 - **L3 VNI** (50000) обеспечивает маршрутизацию между VNI через **EVPN Symmetric IRB**.
 - **VRF TENANT** изолирует клиентскую маршрутизацию.
 - **Anycast Gateway** (`172.16.10.1`, `172.16.20.1`) настроен на всех Leaf с одинаковым MAC (`0000.aaaa.bbbb`).
-- **ESI-LAG** (Type-1 AD + Type-4 ES) обеспечивает отказоустойчивое подключение Host-1 через два Leaf (Leaf-01 и Leaf-02).
-- **Linux bond (802.3ad)** на Host-1 агрегирует два физических линка в один логический.
-- **Хосты** реализованы на **Ubuntu Server 20.04** (ID 254 в ishare2) — лёгкий, быстрый, с полной поддержкой LACP.
+- **3 ESI-LAG** (Type-1 AD + Type-4 ES) обеспечивают отказоустойчивое подключение **всех трёх клиентов** через пары Leaf:
+  - ESI #1 — Host-1 (Leaf-01 + Leaf-02)
+  - ESI #2 — Host-2 (Leaf-02 + Leaf-03)
+  - ESI #3 — Host-3 (Leaf-03 + Leaf-01)
+- **Linux bond (802.3ad)** на всех хостах агрегирует два физических линка в один логический.
+- **Хосты** реализованы на **Ubuntu Server 20.04** (ID 254 в ishare2).
+- **Super-Spine E1/4** подключён к **Cloud (Mgmt)**.
 - **Тесты отказоустойчивости** подтвердили, что при отключении любого линка, BGP-сессии или целого Spine связность **не теряется** (потери ≤ 2 пакетов).
 - Все BGP EVPN-сессии установлены, MAC-адреса изучаются через контрольную плоскость, L3-трафик между клиентами проходит без потерь.
