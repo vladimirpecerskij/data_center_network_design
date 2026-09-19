@@ -6,7 +6,7 @@
 
 ## 1. Топология сети
 
-![Топология](./L3VNI_ESI.png)
+![Топология](./L3VNI_ESI_3x.png)
 
 - **Super-Spine (уровень 1):** 1 коммутатор **Cisco Nexus 9000** (NX-OS).
 - **Spine (уровень 2):** 3 коммутатора **Arista vEOS** (Spine-01, Spine-02, Spine-03).
