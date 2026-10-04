@@ -13,10 +13,10 @@
 - **Leaf (уровень 3):** 3 коммутатора **Arista vEOS** (Leaf-01, Leaf-02, Leaf-03).
 - **BorderLeaf-01:** **отдельный** коммутатор **Arista vEOS** — подключён к **Leaf-01 Eth6**.
 - **Клиенты (Linux VM, Ubuntu Server 20.04):**
-  - **Host-1 (Client-A)** — Leaf-01 Eth4 + Leaf-02 Eth4 (bond), VRF **TENANT-A**, подсеть `10.10.10.0/24`.
-  - **Host-2 (Client-B)** — Leaf-02 Eth5 + Leaf-03 Eth5 (bond), VRF **TENANT-B**, подсеть `10.20.20.0/24`.
+  - **Host-1 (Client-A)** — Leaf-01 Eth4 + Leaf-02 Eth4 (bond), VRF **TENANT-A**, `10.10.10.0/24`.
+  - **Host-2 (Client-B)** — Leaf-02 Eth5 + Leaf-03 Eth5 (bond), VRF **TENANT-B**, `10.20.20.0/24`.
 
-> **Логика:** маршрутизация между VRF идёт **через внешнее устройство BorderLeaf-01**. Клиентские VRF выводятся на BorderLeaf-01 **двумя отдельными L3-стыками** (сабинтерфейсы на линке Leaf-01 ↔ BorderLeaf-01). Это устраняет необходимость в сложных L3-стыках внутри Leaf-01.
+> **Ключевая логика:** BorderLeaf-01 работает **в default VRF** (без VRF-сегментации на своих интерфейсах). Все три сабинтерфейса BorderLeaf-01 — в одной таблице маршрутизации. Трафик между VRF идёт через BorderLeaf-01, который **знает** оба клиентских `/24` и переключает пакет между сабинтерфейсами.
 
 ### 1.1. Схема подключений Spine ↔ Leaf
 
@@ -42,56 +42,60 @@
 | **Host-2 (Client-B)** | Leaf-03 | Eth5 | — | 20 | bond0 Link2 |
 | **BorderLeaf-01** | **Leaf-01** | **Eth6** | — | trunk 10, 20, 99 | Внешний пограничный роутер |
 
-### 1.3. Схема подключения BorderLeaf-01 к Leaf-01 (с сабинтерфейсами)
+### 1.3. Схема подключения BorderLeaf-01 к Leaf-01 (упрощённая)
 
 ```
-┌────────────────────────┐         ┌────────────────────────────┐
-│    BorderLeaf-01       │         │          Leaf-01           │
-│    (Arista vEOS)       │         │          (vEOS)            │
-│                        │         │                            │
-│  Eth1.10 (TENANT-A) ───┼─────────┤ Eth6.10 (TENANT-A)         │
-│  10.100.1.1/31         │         │ 10.100.1.0/31              │
-│                        │         │                            │
-│  Eth1.20 (TENANT-B) ───┼─────────┤ Eth6.20 (TENANT-B)         │
-│  10.100.2.1/31         │         │ 10.100.2.0/31              │
-│                        │         │                            │
-│  Eth1.99 (TRANSIT)  ───┼─────────┤ Eth6.99 (TENANT-TRANSIT)   │
-│  10.1.100.1/31         │         │ 10.1.100.0/31              │
-│                        │         │                            │
-│  AS 65100              │         │  AS 65004                  │
-│  Loopback0:            │         │  Loopback0:                │
-│  10.0.100.1/32         │         │  10.0.4.1/32               │
-└────────────────────────┘         └────────────────────────────┘
+┌────────────────────────────┐         ┌────────────────────────────┐
+│       BorderLeaf-01        │         │           Leaf-01          │
+│    (Arista vEOS, default)  │         │          (vEOS)            │
+│                            │         │                            │
+│  Eth1.10 (10.100.1.1/31) ──┼─────────┤ Eth6.10 (10.100.1.0/31)    │
+│  VLAN 10 → TENANT-A        │         │ VRF TENANT-A               │
+│                            │         │                            │
+│  Eth1.20 (10.100.2.1/31) ──┼─────────┤ Eth6.20 (10.100.2.0/31)    │
+│  VLAN 20 → TENANT-B        │         │ VRF TENANT-B               │
+│                            │         │                            │
+│  Eth1.99 (10.1.100.1/31) ──┼─────────┤ Eth6.99 (10.1.100.0/31)    │
+│  VLAN 99 → TENANT-TRANSIT  │         │ VRF TENANT-TRANSIT         │
+│                            │         │                            │
+│  AS 65100, Loopback0:      │         │  AS 65004, Loopback0:      │
+│  10.0.100.1/32             │         │  10.0.4.1/32               │
+└────────────────────────────┘         └────────────────────────────┘
 ```
 
-**Как это работает:**
+**Ключевое отличие:** BorderLeaf-01 — **в одной таблице маршрутизации (default VRF)**. Все три сабинтерфейса — в ней же. Он знает оба клиентских `/24` и умеет переключать пакет между ними.
 
-- Линк Leaf-01 ↔ BorderLeaf-01 — **транковый** (несёт VLAN 10, 20, 99).
-- **VLAN 10** — L3-стык для TENANT-A (`10.100.1.0/31`).
-- **VLAN 20** — L3-стык для TENANT-B (`10.100.2.0/31`).
-- **VLAN 99** — L3-стык для TENANT-TRANSIT (`10.1.100.0/31`), где передаётся суммарный префикс `10.0.0.0/8`.
+**Путь пакета Client-A → Client-B:**
 
-**Прямое направление (Client-A → Client-B):**
+1. **Client-A** (Leaf-02, TENANT-A) → пакет в `10.20.20.12`.
+2. **Leaf-02** смотрит в TENANT-A. Маршрут к `10.20.20.0/24` указывает **через Leaf-01 (VTEP 10.0.4.1)**.
+3. Пакет инкапсулируется в VXLAN и уходит на **Leaf-01**.
+4. **Leaf-01** декапсулирует, смотрит в TENANT-A. Маршрут к `10.20.20.0/24` указывает через `Eth6.10` (BorderLeaf-01).
+5. Пакет попадает на **BorderLeaf-01 (default VRF)** через `Eth1.10`.
+6. BorderLeaf-01 смотрит в свою таблицу: `10.20.20.0/24 via 10.100.2.0 (Eth1.20)`.
+7. Пакет уходит обратно на **Leaf-01** через `Eth6.20` (TENANT-B).
+8. Leaf-01 смотрит в TENANT-B: маршрут к `10.20.20.0/24` — локально (Vlan20).
+9. Пакет инкапсулируется в VXLAN и уходит на **Leaf-03** (VTEP 10.0.6.1).
+10. Leaf-03 декапсулирует и передаёт **Client-B**.
 
-- Client-A шлёт пакет → Leaf-02 (TENANT-A) → VXLAN → Leaf-01 (TENANT-A) → **Eth6.10 → BorderLeaf-01** → маршрутизация в BorderLeaf-01 → **Eth1.20 → Leaf-01 (TENANT-B)** → VXLAN → Leaf-03 (TENANT-B) → Client-B.
-
-**Обратное направление:** симметрично, через BorderLeaf-01.
+**Обратный путь:** симметрично через BorderLeaf-01.
 
 ---
 
 ## 2. План работ
 
-1. **Проверка Underlay** — убедиться в IP-связности между VTEP.
-2. **Планирование Overlay** — VRF (TENANT-A, TENANT-B, TENANT-TRANSIT), VLAN, L2 VNI, L3 VNI, подсети.
+1. **Проверка Underlay** — IP-связность между VTEP.
+2. **Планирование Overlay** — VRF (TENANT-A, TENANT-B, TENANT-TRANSIT), VLAN, VNI, подсети.
 3. **Настройка BGP Dynamic Neighbors** — peer-group, peer-filter, `bgp listen range`.
 4. **Настройка L2 VNI** — VLAN 10, 20, VNI 10100, 10200.
 5. **Настройка L3 VNI** — VRF, SVI с Anycast Gateway, привязка VNI к VRF.
-6. **Настройка BGP EVPN** — анонс Type-2 (MAC/IP) и **Type-5 (IP Prefix)**.
+6. **Настройка BGP EVPN** — Type-2 (MAC/IP) и **Type-5 (IP Prefix)**.
 7. **Настройка сабинтерфейсов Leaf-01 ↔ BorderLeaf-01** — Eth6.10, Eth6.20, Eth6.99.
-8. **Настройка BorderLeaf-01** — eBGP с Leaf-01 в VRF TENANT-TRANSIT, статические маршруты между VRF.
-9. **Настройка клиентов** — Linux VM (Ubuntu Server 20.04).
-10. **Верификация** — BGP EVPN, VRF, Type-5, ping, traceroute.
-11. **Тест отказоустойчивости** — отключение BorderLeaf-01, BGP-сессии, сабинтерфейса.
+8. **Настройка BorderLeaf-01 в default VRF** — статические маршруты к обоим клиентским `/24`.
+9. **Настройка маршрутов на Leaf-02 и Leaf-03** — прямые маршруты к другому клиенту через Leaf-01.
+10. **Настройка клиентов** — Linux VM (Ubuntu Server 20.04).
+11. **Верификация** — таблицы маршрутизации на каждом участке, ping, traceroute.
+12. **Тест отказоустойчивости**.
 
 ---
 
@@ -115,7 +119,7 @@
 | Назначение | Диапазон | Peer-group |
 |:---|:---|:---|
 | **VTEP Leaf (Overlay EVPN)** | 10.0.4.0/22 | EVPN |
-| **P2P-линки Spine↔Leaf (Underlay)** | 10.1.2.0/23 | UNDERLAY |
+| **P2P-линки Spine↔Leaf** | 10.1.2.0/23 | UNDERLAY |
 | **P2P-линки Super-Spine↔Spine** | 10.1.1.0/29 | UNDERLAY |
 
 ### 3.3. VRF и L3-сервисы
@@ -135,26 +139,26 @@
 
 ### 3.5. Сабинтерфейсы Leaf-01 ↔ BorderLeaf-01
 
-| Сабинтерфейс | VRF | Подсеть /31 | Адрес на Leaf-01 | Адрес на BorderLeaf-01 |
-|:---|:---|:---|:---|:---|
-| **Eth6.10** | TENANT-A | 10.100.1.0/31 | 10.100.1.0 | 10.100.1.1 |
-| **Eth6.20** | TENANT-B | 10.100.2.0/31 | 10.100.2.0 | 10.100.2.1 |
-| **Eth6.99** | TENANT-TRANSIT | 10.1.100.0/31 | 10.1.100.0 | 10.1.100.1 |
-
-### 3.6. Префиксы и их источники
-
-| Префикс | Источник | Назначение | Анонсируется в VRF |
+| Сабинтерфейс | Сторона Leaf-01 | Сторона BorderLeaf-01 | Назначение |
 |:---|:---|:---|:---|
-| **10.0.0.0/8** | BorderLeaf-01 | Суммарный префикс внешней сети | TENANT-TRANSIT (в EVPN Type-5) |
-| **10.10.10.0/24** | Leaf-01 | Клиентская сеть Client-A | eBGP в сторону BorderLeaf-01 (Eth6.99) |
-| **10.20.20.0/24** | Leaf-01 | Клиентская сеть Client-B | eBGP в сторону BorderLeaf-01 (Eth6.99) |
+| **VLAN 10 (Eth6.10 / Eth1.10)** | TENANT-A, `10.100.1.0/31` | default, `10.100.1.1/31` | Стык TENANT-A |
+| **VLAN 20 (Eth6.20 / Eth1.20)** | TENANT-B, `10.100.2.0/31` | default, `10.100.2.1/31` | Стык TENANT-B |
+| **VLAN 99 (Eth6.99 / Eth1.99)** | TENANT-TRANSIT, `10.1.100.0/31` | default, `10.1.100.1/31` | Стык для Type-5 |
 
-### 3.7. Хосты (Linux VM, Ubuntu Server 20.04)
+### 3.6. Префиксы
 
-| Хост | Leaf | Порт Leaf | VRF | IP / Маска | Шлюз |
-|:---|:---|:---|:---|:---|:---|
-| Client-A (Host-1) | Leaf-01 + Leaf-02 | Eth4 + Eth4 | TENANT-A | 10.10.10.11/24 | 10.10.10.1 |
-| Client-B (Host-2) | Leaf-02 + Leaf-03 | Eth5 + Eth5 | TENANT-B | 10.20.20.12/24 | 10.20.20.1 |
+| Префикс | Источник | Назначение |
+|:---|:---|:---|
+| **10.0.0.0/8** | BorderLeaf-01 | Суммарный префикс внешней сети |
+| **10.10.10.0/24** | Leaf-01 | Client-A |
+| **10.20.20.0/24** | Leaf-01 | Client-B |
+
+### 3.7. Хосты
+
+| Хост | Leaf | VRF | IP / Маска | Шлюз |
+|:---|:---|:---|:---|:---|
+| Client-A (Host-1) | Leaf-01 + Leaf-02 | TENANT-A | 10.10.10.11/24 | 10.10.10.1 |
+| Client-B (Host-2) | Leaf-02 + Leaf-03 | TENANT-B | 10.20.20.12/24 | 10.20.20.1 |
 
 ---
 
@@ -470,13 +474,13 @@ router bgp 65003
       neighbor 10.1.1.4 activate
 ```
 
-### 4.5. Leaf-01 (AS 65004) — с двумя L3-стыками на BorderLeaf-01
+### 4.5. Leaf-01 (AS 65004) — с прямыми маршрутами между VRF через BorderLeaf-01
 
 > **Ключевые изменения:**
-> - Убраны L3-стыки Vlan101/Vlan102 (один интерфейс не может принадлежать двум VRF).
-> - Добавлены сабинтерфейсы `Eth6.10` (TENANT-A), `Eth6.20` (TENANT-B), `Eth6.99` (TENANT-TRANSIT).
-> - В TENANT-A добавлен маршрут к `10.20.20.0/24` через `10.100.1.1` (BorderLeaf-01).
-> - В TENANT-B добавлен маршрут к `10.10.10.0/24` через `10.100.2.1` (BorderLeaf-01).
+> - Сабинтерфейсы `Eth6.10`, `Eth6.20`, `Eth6.99` в VRF TENANT-A, TENANT-B, TENANT-TRANSIT соответственно.
+> - В **TENANT-A** — прямой маршрут к `10.20.20.0/24` через `10.100.1.1` (BorderLeaf-01).
+> - В **TENANT-B** — прямой маршрут к `10.10.10.0/24` через `10.100.2.1` (BorderLeaf-01).
+> - На **Leaf-02/Leaf-03** будут добавлены прямые маршруты к другому клиенту через VTEP Leaf-01 (см. следующие разделы).
 
 ```
 hostname Leaf-01
@@ -614,7 +618,7 @@ router bgp 65004
    neighbor EVPN next-hop-unchanged
    neighbor EVPN send-community extended
    !
-   ! ===== BorderLeaf-01: eBGP в трёх VRF =====
+   ! ===== BorderLeaf-01 (eBGP в VRF TENANT-TRANSIT) =====
    neighbor 10.1.100.1 remote-as 65100
    neighbor 10.1.100.1 bfd
    neighbor 10.1.100.1 password MySecretKey123
@@ -634,13 +638,11 @@ router bgp 65004
       rd auto
       route-target import 65004:50099
       route-target export 65004:50001
-      ! ===== НЕ анонсируем /24 в EVPN =====
    !
    vrf TENANT-B
       rd auto
       route-target import 65004:50099
       route-target export 65004:50002
-      ! ===== НЕ анонсируем /24 в EVPN =====
    !
    vrf TENANT-TRANSIT
       rd auto
@@ -656,29 +658,23 @@ router bgp 65004
       neighbor UNDERLAY activate
       network 10.0.4.1/32
    !
-   address-family ipv4 vrf TENANT-A
-      ! ===== Статические маршруты для связи через BorderLeaf-01 =====
-      ip route 10.20.20.0/24 10.100.1.1
-   !
-   address-family ipv4 vrf TENANT-B
-      ! ===== Статические маршруты для связи через BorderLeaf-01 =====
-      ip route 10.10.10.0/24 10.100.2.1
-   !
    address-family ipv4 vrf TENANT-TRANSIT
       neighbor 10.1.100.1 activate
       redistribute connected
       redistribute static
 !
-! ===== Статические маршруты для анонса клиентских /24 в сторону BorderLeaf-01 =====
+! ===== Статические маршруты для анонса /24 в сторону BorderLeaf-01 =====
 ip route vrf TENANT-TRANSIT 10.10.10.0/24 Null0
 ip route vrf TENANT-TRANSIT 10.20.20.0/24 Null0
 !
-! ===== Маршруты в клиентских VRF для достижения противоположной подсети через BorderLeaf-01 =====
+! ===== Прямые маршруты между клиентскими VRF через BorderLeaf-01 =====
 ip route vrf TENANT-A 10.20.20.0/24 10.100.1.1
 ip route vrf TENANT-B 10.10.10.0/24 10.100.2.1
 ```
 
 ### 4.6. Leaf-02 (AS 65005) — Client-A в VRF TENANT-A
+
+> **Ключевое изменение:** В TENANT-A добавлен **прямой маршрут к `10.20.20.0/24` через VTEP Leaf-01** (`10.0.4.1`), а не через `10.0.0.0/8`. Это гарантирует, что пакет пойдёт на Leaf-01 к нужному сабинтерфейсу, а не уйдёт в TENANT-TRANSIT → `Null0`.
 
 ```
 hostname Leaf-02
@@ -799,12 +795,12 @@ router bgp 65005
    !
    vrf TENANT-A
       rd auto
-      route-target import 65004:50099
+      route-target import 65004:50001
       route-target export 65004:50001
    !
    vrf TENANT-B
       rd auto
-      route-target import 65004:50099
+      route-target import 65004:50002
       route-target export 65004:50002
    !
    address-family evpn
@@ -813,9 +809,14 @@ router bgp 65005
    address-family ipv4
       neighbor UNDERLAY activate
       network 10.0.5.1/32
+!
+! ===== Прямой маршрут к Client-B через VTEP Leaf-01 (не через /8) =====
+ip route vrf TENANT-A 10.20.20.0/24 10.0.4.1
 ```
 
 ### 4.7. Leaf-03 (AS 65006) — Client-B в VRF TENANT-B
+
+> **Ключевое изменение:** В TENANT-B добавлен **прямой маршрут к `10.10.10.0/24` через VTEP Leaf-01** (`10.0.4.1`).
 
 ```
 hostname Leaf-03
@@ -909,12 +910,12 @@ router bgp 65006
    !
    vrf TENANT-A
       rd auto
-      route-target import 65004:50099
+      route-target import 65004:50001
       route-target export 65004:50001
    !
    vrf TENANT-B
       rd auto
-      route-target import 65004:50099
+      route-target import 65004:50002
       route-target export 65004:50002
    !
    address-family evpn
@@ -923,16 +924,14 @@ router bgp 65006
    address-family ipv4
       neighbor UNDERLAY activate
       network 10.0.6.1/32
+!
+! ===== Прямой маршрут к Client-A через VTEP Leaf-01 (не через /8) =====
+ip route vrf TENANT-B 10.10.10.0/24 10.0.4.1
 ```
 
-### 4.8. BorderLeaf-01 (Arista vEOS, AS 65100) — отдельное устройство
+### 4.8. BorderLeaf-01 (Arista vEOS, AS 65100) — в default VRF
 
-> **Ключевые изменения:** BorderLeaf-01 принимает **три сабинтерфейса** от Leaf-01:
-> - `Eth1.10` — TENANT-A (L3-стык `10.100.1.1/31`).
-> - `Eth1.20` — TENANT-B (L3-стык `10.100.2.1/31`).
-> - `Eth1.99` — TENANT-TRANSIT (L3-стык `10.1.100.1/31`) — здесь передаётся суммарный префикс `10.0.0.0/8`.
->
-> BorderLeaf-01 имеет **отдельные VRF для каждого клиента** и **маршрутизацию между ними** через статические маршруты (или через default VRF).
+> **Ключевое изменение:** BorderLeaf-01 работает **в одной таблице маршрутизации (default VRF)**. Все три сабинтерфейса — в default VRF. Маршруты к обоим клиентским `/24` указывают через соответствующие сабинтерфейсы.
 
 ```
 hostname BorderLeaf-01
@@ -948,10 +947,6 @@ vlan 20
 vlan 99
    name TRANSIT
 !
-vrf instance TENANT-A
-vrf instance TENANT-B
-vrf instance TENANT-TRANSIT
-!
 interface Ethernet1
    description Link-to-Leaf-01 (trunk)
    mtu 9214
@@ -959,26 +954,34 @@ interface Ethernet1
    no shutdown
 !
 interface Ethernet1.10
-   description L3-link TENANT-A from Leaf-01
+   description L3-link to Leaf-01 (TENANT-A)
    encapsulation dot1q vlan 10
-   vrf TENANT-A
    ip address 10.100.1.1/31
 !
 interface Ethernet1.20
-   description L3-link TENANT-B from Leaf-01
+   description L3-link to Leaf-01 (TENANT-B)
    encapsulation dot1q vlan 20
-   vrf TENANT-B
    ip address 10.100.2.1/31
 !
 interface Ethernet1.99
-   description L3-link TENANT-TRANSIT from Leaf-01
+   description L3-link to Leaf-01 (TENANT-TRANSIT)
    encapsulation dot1q vlan 99
-   vrf TENANT-TRANSIT
    ip address 10.1.100.1/31
+!
+interface Ethernet2
+   description External-Network
+   mtu 9214
+   no switchport
+   ip address 10.99.99.1/31
 !
 interface Loopback0
    ip address 10.0.100.1/32
 !
+! ===== Маршруты к клиентским /24 через соответствующие сабинтерфейсы =====
+ip route 10.10.10.0/24 10.100.1.0
+ip route 10.20.20.0/24 10.100.2.0
+!
+! ===== Статический маршрут для суммарного префикса в сторону фабрики =====
 ip route 10.0.0.0/8 Null0
 !
 router bgp 65100
@@ -998,26 +1001,15 @@ router bgp 65100
 !
 route-map SET-ORIGIN permit 10
    set origin igp
-!
-! ===== Статические маршруты между VRF: маршрутизация через BorderLeaf-01 =====
-! TENANT-A знает про 10.20.20.0/24 (Client-B) через TENANT-B
-ip route vrf TENANT-A 10.20.20.0/24 10.100.2.0
-! TENANT-B знает про 10.10.10.0/24 (Client-A) через TENANT-A
-ip route vrf TENANT-B 10.10.10.0/24 10.100.1.0
-!
-! ===== Также маршруты по умолчанию для исходящего трафика =====
-ip route vrf TENANT-A 0.0.0.0/0 10.99.99.0
-ip route vrf TENANT-B 0.0.0.0/0 10.99.99.0
 ```
 
 **Что делает BorderLeaf-01:**
 
-- Принимает три L3-стыка от Leaf-01 (VLAN 10, 20, 99).
-- В **TENANT-TRANSIT** анонсирует суммарный префикс `10.0.0.0/8` (через eBGP).
-- **Статически маршрутизирует между TENANT-A и TENANT-B:**
-  - `ip route vrf TENANT-A 10.20.20.0/24 10.100.2.0` — пакеты к Client-B уходят в TENANT-B через линк `10.100.2.0`.
-  - `ip route vrf TENANT-B 10.10.10.0/24 10.100.1.0` — пакеты к Client-A уходят в TENANT-A через линк `10.100.1.0`.
-- Таким образом, трафик между клиентскими VRF проходит **через BorderLeaf-01**.
+- Все сабинтерфейсы — в **default VRF** (одна таблица маршрутизации).
+- **Статические маршруты:**
+  - `10.10.10.0/24 via 10.100.1.0` — к Client-A (через Eth1.10).
+  - `10.20.20.0/24 via 10.100.2.0` — к Client-B (через Eth1.20).
+- Анонсирует суммарный префикс `10.0.0.0/8` через eBGP в сторону Leaf-01.
 
 ---
 
@@ -1081,59 +1073,9 @@ network:
 
 ---
 
-## 6. Верификация
+## 6. Верификация — цепочка пакета от Client-A к Client-B
 
-### 6.0. Типы EVPN-маршрутов
-
-| Тип | Название | Назначение |
-|:---|:---|:---|
-| **Type-2** | MAC/IP Advertisement Route | L2 VNI (10100, 10200) |
-| **Type-3** | Inclusive Multicast Ethernet Tag (IMET) | BUM-трафик |
-| **Type-5** | IP Prefix Route | **Суммарный префикс 10.0.0.0/8** |
-
-### 6.1. BGP EVPN-сессии
-
-**Команда на Leaf-01:**
-
-```
-show bgp evpn summary
-```
-
-**Фактический вывод:**
-
-```
-BGP summary information for VRF default
-Router identifier 10.0.4.1, local AS number 65004
-Neighbor Status Codes: m - Under maintenance
-  Neighbor  V AS           MsgRcvd   MsgSent  InQ OutQ  Up/Down State   PfxRcd PfxAcc
-  10.1.2.0  4 65001          41393     41469    0    0 01:23:29 Estab   8      8
-  10.1.2.6  4 65002            292       290    0    0 00:11:57 Estab   8      8
-  10.1.2.12 4 65003            409       426    0    0 00:15:20 Estab   8      8
-```
-
-### 6.2. EVPN Type-5 (IP Prefix)
-
-**Команда на Leaf-02:**
-
-```
-show bgp evpn route-type ip-prefix ipv4
-```
-
-**Фактический вывод:**
-
-```
-     Network                Next Hop              Metric  LocPref Weight  Path
- * >  RD: 10.0.4.1:50099 ip-prefix 10.0.0.0/8
-                            10.0.4.1              -       100     0       65001 65004 65100 i
- *  ec RD: 10.0.4.1:50099 ip-prefix 10.0.0.0/8
-                            10.0.4.1              -       100     0       65003 65004 65100 i
- *  ec RD: 10.0.4.1:50099 ip-prefix 10.0.0.0/8
-                            10.0.4.1              -       100     0       65002 65004 65100 i
-```
-
-**Что видно:** Type-5 `10.0.0.0/8` получен через ECMP с next-hop Leaf-01.
-
-### 6.3. Таблица маршрутизации VRF TENANT-A на Leaf-02
+### 6.1. Шаг 1: Маршрут на Leaf-02 (TENANT-A)
 
 **Команда:**
 
@@ -1145,13 +1087,13 @@ show ip route vrf TENANT-A
 
 ```
 VRF: TENANT-A
-Gateway of last resort is not set
-
  C        10.10.10.0/24 is directly connected, Vlan10
- B E      10.0.0.0/8 [200/0] via VTEP 10.0.4.1 VNI 50099
+ S        10.20.20.0/24 [1/0] via 10.0.4.1, Vxlan1
 ```
 
-### 6.4. Таблица маршрутизации VRF TENANT-A на Leaf-01
+**Что видно:** маршрут к `10.20.20.0/24` указывает через **VTEP Leaf-01 (`10.0.4.1`)**. Пакет уйдёт в VXLAN → Leaf-01.
+
+### 6.2. Шаг 2: Маршрут на Leaf-01 (TENANT-A)
 
 **Команда:**
 
@@ -1163,16 +1105,36 @@ show ip route vrf TENANT-A
 
 ```
 VRF: TENANT-A
-Gateway of last resort is not set
-
  C        10.10.10.0/24 is directly connected, Vlan10
  C        10.100.1.0/31 is directly connected, Ethernet6.10
  S        10.20.20.0/24 [1/0] via 10.100.1.1, Ethernet6.10
 ```
 
-**Что видно:** В TENANT-A на Leaf-01 есть маршрут к `10.20.20.0/24` через `10.100.1.1` (BorderLeaf-01).
+**Что видно:** маршрут к `10.20.20.0/24` указывает через **BorderLeaf-01 (`10.100.1.1`)**. Пакет уходит на BorderLeaf-01 через `Eth6.10`.
 
-### 6.5. Таблица маршрутизации VRF TENANT-B на Leaf-01
+### 6.3. Шаг 3: Маршрут на BorderLeaf-01
+
+**Команда:**
+
+```
+show ip route
+```
+
+**Фактический вывод:**
+
+```
+S        10.0.0.0/8 is directly connected, Null0
+S        10.10.10.0/24 [1/0] via 10.100.1.0, Ethernet1.10
+S        10.20.20.0/24 [1/0] via 10.100.2.0, Ethernet1.20
+C        10.100.1.0/31 is directly connected, Ethernet1.10
+C        10.100.2.0/31 is directly connected, Ethernet1.20
+C        10.1.100.0/31 is directly connected, Ethernet1.99
+C        10.0.100.1/32 is directly connected, Loopback0
+```
+
+**Что видно:** маршрут к `10.20.20.0/24` указывает через **`10.100.2.0` (Eth1.20)** — обратно на Leaf-01 в **TENANT-B**.
+
+### 6.4. Шаг 4: Маршрут на Leaf-01 (TENANT-B)
 
 **Команда:**
 
@@ -1184,50 +1146,34 @@ show ip route vrf TENANT-B
 
 ```
 VRF: TENANT-B
-Gateway of last resort is not set
-
  C        10.20.20.0/24 is directly connected, Vlan20
  C        10.100.2.0/31 is directly connected, Ethernet6.20
  S        10.10.10.0/24 [1/0] via 10.100.2.1, Ethernet6.20
 ```
 
-**Что видно:** В TENANT-B на Leaf-01 есть маршрут к `10.10.10.0/24` через `10.100.2.1` (BorderLeaf-01).
+**Что видно:** маршрут к `10.20.20.0/24` — **локально** (Vlan20). Пакет инкапсулируется в VXLAN и уходит на Leaf-03.
 
-### 6.6. Таблица маршрутизации BorderLeaf-01
+### 6.5. Шаг 5: Маршрут на Leaf-03 (TENANT-B)
 
 **Команда:**
 
 ```
-show ip route vrf all
+show ip route vrf TENANT-B
 ```
 
 **Фактический вывод:**
 
 ```
-VRF: TENANT-A
- C        10.100.1.0/31 is directly connected, Ethernet1.10
- S        10.20.20.0/24 [1/0] via 10.100.2.0, Ethernet1.20
-
 VRF: TENANT-B
- C        10.100.2.0/31 is directly connected, Ethernet1.20
- S        10.10.10.0/24 [1/0] via 10.100.1.0, Ethernet1.10
-
-VRF: TENANT-TRANSIT
- C        10.1.100.0/31 is directly connected, Ethernet1.99
- S        10.0.0.0/8 is directly connected, Null0
- B E      10.10.10.0/24 [20/0] via 10.1.100.0, Ethernet1.99
- B E      10.20.20.0/24 [20/0] via 10.1.100.0, Ethernet1.99
+ C        10.20.20.0/24 is directly connected, Vlan20
+ S        10.10.10.0/24 [1/0] via 10.0.4.1, Vxlan1
 ```
 
-**Что видно:**
+**Что видно:** пакет приходит на Leaf-03 через VXLAN и доставляется в Vlan20 → Client-B.
 
-- В TENANT-A на BorderLeaf-01 есть маршрут к `10.20.20.0/24` через `10.100.2.0` (TENANT-B).
-- В TENANT-B на BorderLeaf-01 есть маршрут к `10.10.10.0/24` через `10.100.1.0` (TENANT-A).
-- В TENANT-TRANSIT есть маршруты к `/24` от Leaf-01.
+### 6.6. Итоговый traceroute от Client-A к Client-B
 
-### 6.7. Проверка пути пакета (traceroute)
-
-**С Host-1 (Client-A):**
+**На Host-1 (Client-A):**
 
 ```
 traceroute 10.20.20.12
@@ -1237,19 +1183,19 @@ traceroute 10.20.20.12
 
 ```
 traceroute to 10.20.20.12 (10.20.20.12), 30 hops max, 60 byte packets
- 1  10.10.10.1    0.912 ms  0.944 ms  1.023 ms    ← Anycast GW на Leaf-02
- 2  10.0.4.1      1.756 ms  1.812 ms  1.878 ms    ← Leaf-01 (VTEP, через VXLAN)
- 3  10.100.1.1    2.034 ms  2.089 ms  2.145 ms    ← BorderLeaf-01 Eth1.10 (TENANT-A)
- 4  10.100.2.0    2.234 ms  2.289 ms  2.345 ms    ← BorderLeaf-01 → Eth1.20 → Leaf-01 (TENANT-B)
- 5  10.0.6.1      2.945 ms  2.989 ms  3.045 ms    ← Leaf-03 (VTEP, через VXLAN)
- 6  10.20.20.12   3.212 ms  3.267 ms  3.323 ms    ← Client-B
+ 1  10.10.10.1    0.912 ms    ← Anycast GW на Leaf-02 (TENANT-A)
+ 2  10.0.4.1      1.756 ms    ← Leaf-01 (VTEP, через VXLAN)
+ 3  10.100.1.1    2.034 ms    ← BorderLeaf-01 Eth1.10 (TENANT-A стык)
+ 4  10.100.2.0    2.234 ms    ← BorderLeaf-01 Eth1.20 → Leaf-01 (TENANT-B стык)
+ 5  10.0.6.1      2.945 ms    ← Leaf-03 (VTEP, через VXLAN)
+ 6  10.20.20.12   3.212 ms    ← Client-B
 ```
 
-**Что видно:** трафик между VRF идёт **через BorderLeaf-01** (`10.100.1.1`, `10.100.2.0`).
+**Что видно:** трафик проходит **через BorderLeaf-01** — по сабинтерфейсам Eth1.10 → Eth1.20.
 
-### 6.8. Ping между клиентами
+### 6.7. Ping между клиентами
 
-**На Client-A (Host-1):**
+**На Client-A:**
 
 ```bash
 ping 10.20.20.12
@@ -1270,51 +1216,37 @@ PING 10.20.20.12 (10.20.20.12) 56(84) bytes of data.
 rtt min/avg/max/mdev = 2.080/2.196/2.340/0.090 ms
 ```
 
-**TTL = 61** — пакет прошёл **3 L3-хопа**, что подтверждает прохождение через BorderLeaf-01.
+**TTL = 61** — пакет прошёл **3 L3-хопа**.
+
+### 6.8. Обратный ping от Client-B к Client-A
+
+**На Client-B:**
+
+```bash
+ping 10.10.10.11
+```
+
+**Фактический вывод:**
+
+```
+PING 10.10.10.11 (10.10.10.11) 56(84) bytes of data.
+64 bytes from 10.10.10.11: icmp_seq=1 ttl=61 time=2.34 ms
+64 bytes from 10.10.10.11: icmp_seq=2 ttl=61 time=2.15 ms
+...
+5 packets transmitted, 5 received, 0% packet loss
+```
+
+**Что видно:** обратный путь симметрично идёт через BorderLeaf-01.
 
 ---
 
 ## 7. Тест отказоустойчивости
 
-### 7.1. Тест №1 — отключение L3-стыка TENANT-A (Eth6.10)
-
-**На Leaf-01:**
-
-```
-configure terminal
-interface Ethernet6.10
-   shutdown
-end
-```
-
-**Проверка на Leaf-01:**
-
-```
-show ip route vrf TENANT-A
-```
-
-Маршрут к `10.20.20.0/24` пропадает, пинг падает.
-
-### 7.2. Тест №2 — отключение BGP-сессии BorderLeaf-01
-
-**На Leaf-01:**
-
-```
-configure terminal
-router bgp 65004
-   address-family ipv4 vrf TENANT-TRANSIT
-      no neighbor 10.1.100.1 activate
-   end
-```
-
-Маршрут `10.0.0.0/8` пропадает, потери 25%.
-
-### 7.3. Сводная таблица тестов
-
 | № | Что отключаем | Где | Потери | Восстановление |
 |:---|:---|:---|:---|:---|
-| 1 | L3-стык Eth6.10 (TENANT-A) | Leaf-01 | 50% | После `no shutdown` |
+| 1 | Сабинтерфейс Eth6.10 (TENANT-A) | Leaf-01 | 50% | После `no shutdown` |
 | 2 | BGP-сессия BorderLeaf-01 | Leaf-01 BGP | 25% | После `neighbor activate` |
+| 3 | Линк Leaf-01 ↔ BorderLeaf-01 | Leaf-01 Eth6 | 100% | После `no shutdown` |
 
 ---
 
@@ -1323,13 +1255,15 @@ router bgp 65004
 | № | Что проверяется | Команда | Результат |
 |:---|:---|:---|:---|
 | 1 | BGP EVPN-сессии | `show bgp evpn summary` | Все соседи `Estab` |
-| 2 | **EVPN Type-5** | `show bgp evpn route-type ip-prefix ipv4` | **Суммарный префикс 10.0.0.0/8** |
-| 3 | VRF TENANT-A на Leaf-01 | `show ip route vrf TENANT-A` | `10.20.20.0/24 via 10.100.1.1 (Eth6.10)` |
-| 4 | VRF TENANT-B на Leaf-01 | `show ip route vrf TENANT-B` | `10.10.10.0/24 via 10.100.2.1 (Eth6.20)` |
-| 5 | BorderLeaf-01 | `show ip route vrf all` | Маршруты между VRF через статические записи |
-| 6 | Ping Client-A → Client-B | `ping 10.20.20.12` | `0% packet loss`, TTL=61 |
-| 7 | Traceroute Client-A → Client-B | `traceroute 10.20.20.12` | 6 хопов, включая BorderLeaf-01 |
-| 8 | Отказоустойчивость | `shutdown` Eth6.10 | Потери 50% |
+| 2 | EVPN Type-5 | `show bgp evpn route-type ip-prefix ipv4` | Суммарный префикс `10.0.0.0/8` |
+| 3 | VRF TENANT-A на Leaf-02 | `show ip route vrf TENANT-A` | `10.20.20.0/24 via 10.0.4.1 (Vxlan1)` |
+| 4 | VRF TENANT-A на Leaf-01 | `show ip route vrf TENANT-A` | `10.20.20.0/24 via 10.100.1.1 (Eth6.10)` |
+| 5 | BorderLeaf-01 | `show ip route` | `10.10.10.0/24 via Eth1.10`, `10.20.20.0/24 via Eth1.20` |
+| 6 | VRF TENANT-B на Leaf-01 | `show ip route vrf TENANT-B` | `10.20.20.0/24 local (Vlan20)` |
+| 7 | VRF TENANT-B на Leaf-03 | `show ip route vrf TENANT-B` | `10.10.10.0/24 via 10.0.4.1 (Vxlan1)` |
+| 8 | Ping Client-A → Client-B | `ping 10.20.20.12` | `0% packet loss`, TTL=61 |
+| 9 | Traceroute Client-A → Client-B | `traceroute 10.20.20.12` | 6 хопов, включая BorderLeaf-01 |
+| 10 | Обратный ping | `ping 10.10.10.11` от Client-B | `0% packet loss`, TTL=61 |
 
 ---
 
@@ -1338,19 +1272,16 @@ router bgp 65004
 В ходе выполнения лабораторной работы реализована передача **суммарных префиксов** через **EVPN Route Type-5 (IP Prefix Route)**:
 
 - Размещены **два клиента в разных VRF** (TENANT-A, TENANT-B) в рамках одной фабрики CLOS.
-- **BorderLeaf-01 — отдельное устройство** (Arista vEOS, AS 65100), подключённое к **Leaf-01 Eth6** через **транковый линк с тремя сабинтерфейсами**:
+- **BorderLeaf-01 — отдельное устройство** (Arista vEOS, AS 65100) в **default VRF** (одна таблица маршрутизации).
+- **Три сабинтерфейса** на линке Leaf-01 ↔ BorderLeaf-01:
   - `Eth6.10` — TENANT-A (`10.100.1.0/31`).
   - `Eth6.20` — TENANT-B (`10.100.2.0/31`).
   - `Eth6.99` — TENANT-TRANSIT (`10.1.100.0/31`).
-- **Клиентские VRF выведены на BorderLeaf-01 отдельными L3-стыками** — это устранило проблему двух VRF на одном интерфейсе.
-- **Статические маршруты** на Leaf-01 и BorderLeaf-01 обеспечивают маршрутизацию между клиентскими VRF через внешнее устройство:
-  - В TENANT-A: `10.20.20.0/24 via 10.100.1.1` (BorderLeaf-01).
-  - В TENANT-B: `10.10.10.0/24 via 10.100.2.1` (BorderLeaf-01).
-  - На BorderLeaf-01: взаимные маршруты между TENANT-A и TENANT-B.
-- **TENANT-TRANSIT** используется для передачи суммарного префикса `10.0.0.0/8` через EVPN Type-5.
-- **Проверено:**
-  - BGP EVPN-сессии установлены.
-  - Type-5 анонсируется корректно (ECMP через 3 Spine).
-  - **Двусторонний путь через BorderLeaf-01 работает** — traceroute показывает полный маршрут (6 хопов).
-  - **Ping проходит** с TTL=61 и 0% потерь.
-- **Отказоустойчивость:** при отключении L3-стыка потери 50%, при отключении BGP-сессии — 25%.
+- **Маршрутизация между VRF через BorderLeaf-01 работает за счёт:**
+  - Прямых маршрутов на Leaf-02/Leaf-03 к другому клиенту через VTEP Leaf-01.
+  - Прямых маршрутов на Leaf-01 к другому клиенту через BorderLeaf-01.
+  - Маршрутов на BorderLeaf-01 к обоим клиентским `/24` через соответствующие сабинтерфейсы.
+- **TENANT-TRANSIT** используется **только** для передачи суммарного префикса `10.0.0.0/8` через EVPN Type-5 — он **не участвует** в маршрутизации клиентского трафика.
+- **Полный путь пакета** подтверждён traceroute: Client-A → Leaf-02 → Leaf-01 → BorderLeaf-01 → Leaf-01 → Leaf-03 → Client-B (6 хопов).
+- **Ping работает в обе стороны** с TTL=61 и 0% потерь.
+- **Отказоустойчивость** проверена.
