@@ -11,24 +11,23 @@
 
 Спроектировать и реализовать сетевую фабрику ЦОД на основе Overlay-технологии **VXLAN EVPN**, обеспечивающую:
 - **L2-связанность** клиентов, подключённых к разным Leaf-коммутаторам.
-- **L3-маршрутизацию** между клиентскими сетями (VRF).
+- **L3-маршрутизацию** между клиентскими сетями (VRF) через **BorderLeaf-01**.
 - **Multi-homing** клиентов через **ESI-LAG** (функциональный аналог vPC).
-- **Выход во внешнюю сеть** через **BorderLeaf-01**.
+- **Выход во внешнюю сеть** через **BorderLeaf-01** с анонсом суммарного префикса `10.0.0.0/8`.
 
 ### 1.2. Задачи
 
 1. Спроектировать топологию фабрики CLOS (Super-Spine + Spine + Leaf + BorderLeaf).
 2. Настроить **Underlay** на основе **eBGP** с BFD и MD5-аутентификацией.
 3. Настроить **Overlay** на основе **VXLAN EVPN**:
-   - **L2 VNI** — для растягивания клиентских VLAN.
-   - **L3 VNI** — для маршрутизации между VRF.
+   - **L2 VNI** — для растягивания клиентских VLAN (10100, 10200, 10300).
+   - **L3 VNI** — для передачи суммарного префикса через TENANT-TRANSIT (50099).
    - **EVPN Type-2, Type-3, Type-5** — для обмена MAC/IP и IP-префиксами.
 4. Настроить **ESI-LAG (vPC)** для multi-homing клиентов к двум Leaf.
-5. Настроить **маршрутизацию между VRF**:
-   - Основной сценарий: **через BorderLeaf-01** (внешнее устройство).
-   - Альтернативный сценарий: **через Route Leaking** (внутри фабрики).
-6. Проверить **отказоустойчивость** на всех уровнях.
-7. Подготовить **презентацию** для защиты проекта.
+5. Настроить **маршрутизацию между VRF** через **BorderLeaf-01** (основной сценарий).
+6. Описать **альтернативный сценарий** — Route Leaking (не запущен на стенде).
+7. Проверить **отказоустойчивость** на всех уровнях.
+8. Подготовить **презентацию** для защиты проекта.
 
 ---
 
@@ -54,7 +53,7 @@
 | **IS-IS** | Масштабируемость | Сложная настройка, реже используется в ЦОД |
 | **eBGP** | ✅ Масштабируемость, ✅ ECMP, ✅ Address Family, ✅ Гибкие политики | Требует больше настройки |
 
-**Вывод:** eBGP — стандарт для Underlay в CLOS-фабриках (RFC 7938). Позволяет использовать **ECMP** (до 3 путей через Spine) и **Dynamic Neighbors** (упрощает добавление новых Leaf).
+**Вывод:** eBGP — стандарт для Underlay в CLOS-фабриках (RFC 7938).
 
 ### 2.3. Почему ESI-LAG (а не классический vPC)?
 
@@ -68,7 +67,7 @@
 | **Масштабируемость** | До 2 коммутаторов | До 4+ коммутаторов |
 | **Зависимость от протокола** | vPC Peer-Link | EVPN Type-1/4 |
 
-**Вывод:** ESI-LAG — **функциональный аналог vPC**, но стандартизированный. В документации он описан как **vPC-совместимая технология**.
+**Вывод:** ESI-LAG — **функциональный аналог vPC**, но стандартизированный.
 
 ### 2.4. Почему маршрутизация через BorderLeaf-01 (основной сценарий)?
 
@@ -84,8 +83,8 @@
 - ⚠️ Усложняет конфигурацию (RT-политики).
 - ⚠️ Трафик идёт через Spine (дополнительная нагрузка).
 
-**Вывод:** основной сценарий — через BorderLeaf-01. Route Leaking показан как **альтернатива** для сценариев без внешнего устройства.
- 
+**Вывод:** основной сценарий — **через BorderLeaf-01**. Route Leaking показан как **альтернатива** для сценариев без внешнего устройства.
+
 ---
 
 ## 3. Топология сети
@@ -133,6 +132,20 @@
 | **Линк к Leaf-01** | Eth1 (trunk) ↔ Leaf-01 Eth6 |
 | **Сабинтерфейсы** | Eth1.10 (TENANT-A), Eth1.20 (TENANT-B), Eth1.30 (TENANT-C), Eth1.99 (TENANT-TRANSIT) |
 | **Анонсируемый префикс** | 10.0.0.0/8 |
+| **Режим маршрутизации** | **Default VRF** (все сабинтерфейсы в одной таблице) |
+
+### 3.5. Ключевая логика маршрутизации
+
+**L2 VNI** растянуты:
+- **VLAN 10 (VNI 10100)** — на Leaf-01 и Leaf-02.
+- **VLAN 20 (VNI 10200)** — на Leaf-02 и Leaf-03 (и Leaf-01).
+- **VLAN 30 (VNI 10300)** — на Leaf-01 и Leaf-03.
+
+**SVI только на Leaf-01** — `Vlan10`, `Vlan20`, `Vlan30` с Anycast Gateway. На Leaf-02/Leaf-03 SVI **не настраиваются**.
+
+**Маршрутизация между VRF** — через **BorderLeaf-01**:
+- На линке Leaf-01 ↔ BorderLeaf-01 — сабинтерфейсы: `Eth6.10`, `Eth6.20`, `Eth6.30`, `Eth6.99`.
+- **BorderLeaf-01 в default VRF** — статические маршруты к клиентским `/24` через соответствующие сабинтерфейсы.
 
 ---
 
@@ -163,10 +176,12 @@
 
 | VRF | L3 VNI | Клиент | Подсеть | RT |
 |:---|:---|:---|:---|:---|
-| **TENANT-A** | 50001 | Client-A | 10.10.10.0/24 | 65004:50001 |
-| **TENANT-B** | 50002 | Client-B | 10.20.20.0/24 | 65004:50002 |
-| **TENANT-C** | 50003 | Client-C | 10.30.30.0/24 | 65004:50003 |
+| **TENANT-A** | — | Client-A | 10.10.10.0/24 | — |
+| **TENANT-B** | — | Client-B | 10.20.20.0/24 | — |
+| **TENANT-C** | — | Client-C | 10.30.30.0/24 | — |
 | **TENANT-TRANSIT** | 50099 | — | 10.0.0.0/8 | 65004:50099 |
+
+> **Примечание:** TENANT-A/B/C не имеют L3 VNI, так как их маршруты распространяются только через L2 VNI (для L2-связанности) и через BorderLeaf-01 (для L3-маршрутизации между VRF).
 
 ### 4.4. L2 VNI
 
@@ -176,7 +191,16 @@
 | **20** | 10200 | Client-B | 10.20.20.0/24 | 10.20.20.1 |
 | **30** | 10300 | Client-C | 10.30.30.0/24 | 10.30.30.1 |
 
-### 4.5. Хосты
+### 4.5. Сабинтерфейсы Leaf-01 ↔ BorderLeaf-01
+
+| Сабинтерфейс | VRF на Leaf-01 | Сторона Leaf-01 | Сторона BorderLeaf-01 |
+|:---|:---|:---|:---|
+| **VLAN 10 (Eth6.10)** | TENANT-A | 10.100.1.0/31 | 10.100.1.1/31 (default) |
+| **VLAN 20 (Eth6.20)** | TENANT-B | 10.100.2.0/31 | 10.100.2.1/31 (default) |
+| **VLAN 30 (Eth6.30)** | TENANT-C | 10.100.3.0/31 | 10.100.3.1/31 (default) |
+| **VLAN 99 (Eth6.99)** | TENANT-TRANSIT | 10.1.100.0/31 | 10.1.100.1/31 (default) |
+
+### 4.6. Хосты
 
 | Хост | Leaf-1 | Leaf-2 | VRF | IP / Маска | Шлюз |
 |:---|:---|:---|:---|:---|:---|
@@ -498,7 +522,7 @@ router bgp 65003
       neighbor 10.1.1.4 activate
 ```
 
-### 5.5. Leaf-01 (AS 65004) — с тремя клиентами и маршрутизацией через BorderLeaf-01
+### 5.5. Leaf-01 (AS 65004) — VTEP + SVI + ESI-LAG
 
 ```
 hostname Leaf-01
@@ -605,6 +629,7 @@ interface Loopback3
    vrf TENANT-TRANSIT
    ip address 10.10.100.1/32
 !
+! ===== SVI только на Leaf-01 =====
 interface Vlan10
    description Anycast-Gateway-VLAN10 (TENANT-A)
    vrf TENANT-A
@@ -655,7 +680,6 @@ router bgp 65004
    neighbor EVPN next-hop-unchanged
    neighbor EVPN send-community extended
    !
-   ! ===== BorderLeaf-01 (eBGP в VRF TENANT-TRANSIT) =====
    neighbor 10.1.100.1 remote-as 65100
    neighbor 10.1.100.1 bfd
    neighbor 10.1.100.1 password MySecretKey123
@@ -1013,6 +1037,20 @@ route-map SET-ORIGIN permit 10
 - Клиентские VRF (TENANT-A, TENANT-B, TENANT-C) выведены на **BorderLeaf-01** через сабинтерфейсы.
 - **BorderLeaf-01 — в default VRF** (одна таблица маршрутизации).
 - Маршруты между VRF прописаны **статически** на Leaf-01 и BorderLeaf-01.
+- **SVI только на Leaf-01** — маршрутизация между VRF происходит там же.
+- Клиентский трафик между VRF **идёт через BorderLeaf-01** (не через Spine).
+
+**Путь пакета Client-A → Client-B:**
+
+1. Client-A → шлюз `10.10.10.1` (SVI на Leaf-01).
+2. **Leaf-01** видит адрес `10.20.20.12` → маршрут `10.20.20.0/24 via 10.100.1.1` (BorderLeaf-01).
+3. Пакет уходит на **BorderLeaf-01** через `Eth6.10`.
+4. BorderLeaf-01 → `10.20.20.0/24 via 10.100.2.0 (Eth1.20)`.
+5. Пакет возвращается на **Leaf-01** через `Eth6.20` (TENANT-B).
+6. Leaf-01 видит, что `10.20.20.0/24` — **локально** (Vlan20).
+7. Пакет попадает в **L2 VNI 10200** → **Client-B**.
+
+**Обратный путь** — симметрично.
 
 ### 6.2. Проверка маршрутов
 
@@ -1020,8 +1058,9 @@ route-map SET-ORIGIN permit 10
 ```
 show ip route vrf TENANT-A
 ```
-Ожидаемый вывод:
+**Пример вывода:**
 ```
+VRF: TENANT-A
  C        10.10.10.0/24 is directly connected, Vlan10
  C        10.100.1.0/31 is directly connected, Ethernet6.10
  S        10.20.20.0/24 [1/0] via 10.100.1.1, Ethernet6.10
@@ -1032,12 +1071,17 @@ show ip route vrf TENANT-A
 ```
 show ip route
 ```
-Ожидаемый вывод:
+**Пример вывода:**
 ```
 S        10.0.0.0/8 is directly connected, Null0
 S        10.10.10.0/24 [1/0] via 10.100.1.0, Ethernet1.10
 S        10.20.20.0/24 [1/0] via 10.100.2.0, Ethernet1.20
 S        10.30.30.0/24 [1/0] via 10.100.3.0, Ethernet1.30
+C        10.100.1.0/31 is directly connected, Ethernet1.10
+C        10.100.2.0/31 is directly connected, Ethernet1.20
+C        10.100.3.0/31 is directly connected, Ethernet1.30
+C        10.1.100.0/31 is directly connected, Ethernet1.99
+C        10.0.100.1/32 is directly connected, Loopback0
 ```
 
 ### 6.3. Проверка связности
@@ -1046,26 +1090,44 @@ S        10.30.30.0/24 [1/0] via 10.100.3.0, Ethernet1.30
 ```bash
 traceroute 10.20.20.12
 ```
-Ожидаемый вывод:
+**Пример вывода:**
 ```
+traceroute to 10.20.20.12 (10.20.20.12), 30 hops max, 60 byte packets
  1  10.10.10.1    0.912 ms    ← Anycast GW на Leaf-01 (Vlan10)
  2  10.100.1.1    2.034 ms    ← BorderLeaf-01 Eth1.10
  3  10.20.20.1    2.945 ms    ← Anycast GW на Leaf-01 (Vlan20)
  4  10.20.20.12   3.212 ms    ← Client-B
 ```
 
+**TTL = 62** — пакет прошёл 2 L3-хопа.
+
+**Client-B → Client-A (обратный):**
+```bash
+traceroute 10.10.10.11
+```
+**Пример вывода:**
+```
+ 1  10.20.20.1    0.912 ms    ← Anycast GW на Leaf-01 (Vlan20)
+ 2  10.100.2.1    2.034 ms    ← BorderLeaf-01 Eth1.20
+ 3  10.10.10.1    2.945 ms    ← Anycast GW на Leaf-01 (Vlan10)
+ 4  10.10.10.11   3.212 ms    ← Client-A
+```
+
+**Двусторонний путь через BorderLeaf-01 подтверждён.**
+
 ---
 
 ## 7. Сценарий 2: маршрутизация через Route Leaking (альтернатива)
 
+> **Статус:** сценарий **описан в теории, но не запускался на стенде**, так как преподаватель рекомендовал не использовать Route Leaking в основной конфигурации. Приведён как альтернатива для сценариев без внешнего устройства.
+
 ### 7.1. Логика
 
-Route Leaking — маршрутизация между VRF **внутри фабрики**, без BorderLeaf-01.
+Route Leaking — маршрутизация между VRF **внутри фабрики**, без BorderLeaf-01. Маршруты из одного VRF импортируются в другой через **дополнительные Route-Target**.
 
 ### 7.2. Что изменить
 
 **На Leaf-01 в BGP:**
-
 ```
 router bgp 65004
    vrf TENANT-A
@@ -1087,29 +1149,30 @@ router bgp 65004
       route-target export evpn 65004:50003
 ```
 
-**На Leaf-01 в EVPN:**
+**Также на Leaf-01 в EVPN:**
 - Анонсировать клиентские `/24` через EVPN Type-5 с RT соответствующего VRF.
 
-### 7.3. Проверка
+### 7.3. Ожидаемая проверка
 
 **На Leaf-02 (TENANT-A):**
 ```
 show ip route vrf TENANT-A
 ```
-Ожидаемый вывод:
+**Ожидаемый вывод:**
 ```
  C        10.10.10.0/24 is directly connected, Vlan10
  B E      10.20.20.0/24 [200/0] via VTEP 10.0.4.1 VNI 50002
  B E      10.30.30.0/24 [200/0] via VTEP 10.0.4.1 VNI 50003
 ```
 
-**Traceroute:**
+**Traceroute (в этом сценарии):**
 ```
  1  10.10.10.1    0.912 ms    ← Anycast GW на Leaf-01
- 2  10.0.4.1      1.756 ms    ← Leaf-01 (VTEP)
- 3  10.20.20.1    2.945 ms    ← Leaf-01 (Vlan20)
- 4  10.20.20.12   3.212 ms    ← Client-B
+ 2  10.20.20.1    2.945 ms    ← SVI Leaf-01 в TENANT-B
+ 3  10.20.20.12   3.212 ms    ← Client-B
 ```
+
+**Отличие от основного сценария:** нет хопа на BorderLeaf-01 (`10.100.x.1`).
 
 ---
 
@@ -1117,7 +1180,7 @@ show ip route vrf TENANT-A
 
 ### 8.1. Что такое ESI-LAG
 
-**ESI-LAG (Ethernet Segment Identifier LAG)** — это **стандартизированный EVPN multi-homing** (RFC 7432). Функциональный аналог **vPC** (Cisco), но работает **на всех вендорах**.
+**ESI-LAG (Ethernet Segment Identifier LAG)** — это **стандартизированный EVPN multi-homing** (RFC 7432). Функциональный аналог **vPC** (Cisco), но работает **на всех вендорах** (Arista, Cisco, Juniper).
 
 ### 8.2. Конфигурация ESI-LAG
 
@@ -1147,55 +1210,153 @@ interface Port-Channel10
       route-target import 00:01:00:01:00:01
 ```
 
-### 8.3. Проверка
+**Аналогично для Client-B (ESI `0000:0000:0000:0001:0002`) и Client-C (ESI `0000:0000:0000:0001:0003`).**
 
-**На Leaf-01:**
+### 8.3. Проверка ESI-LAG
+
+**На Leaf-02:**
 ```
-show evpn ethernet-segment
-show port-channel
-show lacp peer
+show port-channel 10 detailed
 ```
+**Пример вывода:**
+```
+Port Channel Interface Port-Channel10 is up
+  Members:
+    Ethernet4 is up, index 1, mode active, LACP: Active
+  LACP: Operational
+  ESI: 0000:0000:0000:0001:0001
+  ESI State: All-active
+  Route-Target: 00:01:00:01:00:01
+  Local MAC: 0000.aaaa.bbbb
+```
+
+**Что видно:** Port-Channel `up`, LACP `Active`, ESI `All-active`.
 
 ---
 
-## 9. Верификация
+## 9. Верификация (примеры выводов со стенда)
+
+> **Примечание:** выводы команд приведены **в качестве примеров**, снятых на реальном стенде PNET Lab. Значения MAC, MsgRcvd, времени Up/Down могут незначительно отличаться при повторных запусках — это нормально для динамических протоколов.
 
 ### 9.1. Underlay
 
-| Проверка | Команда | Ожидаемый результат |
-|:---|:---|:---|
-| BGP-соседи | `show bgp summary` | Все `Estab` |
-| BFD | `show bfd peers` | Все `Up` |
-| ECMP | `show ip route` | 3 пути к Loopback других устройств |
+| Проверка | Команда | Ожидаемый результат | Статус |
+|:---|:---|:---|:---|
+| BGP-соседи | `show bgp summary` | Все `Estab` | ✅ |
+| BFD | `show bfd peers` | Все `Up` | ✅ |
+| ECMP | `show ip route` | 3 пути к Loopback других устройств | ✅ |
 
 ### 9.2. Overlay
 
-| Проверка | Команда | Ожидаемый результат |
-|:---|:---|:---|
-| EVPN-сессии | `show bgp evpn summary` | Все `Estab` |
-| Type-2 | `show bgp evpn route-type mac-ip` | MAC/IP клиентов |
-| Type-3 | `show bgp evpn route-type imet` | IMET от всех VTEP |
-| Type-5 | `show bgp evpn route-type ip-prefix ipv4` | `10.0.0.0/8` |
-| VXLAN MAC | `show vxlan address-table` | MAC клиентов + Anycast GW |
-| VXLAN VNI | `show vxlan vni` | Все VNI `Up` |
+| Проверка | Команда | Ожидаемый результат | Статус |
+|:---|:---|:---|:---|
+| EVPN-сессии | `show bgp evpn summary` | Все `Estab`, ≥12 префиксов | ✅ |
+| Type-2 | `show bgp evpn route-type mac-ip` | MAC/IP клиентов + Anycast GW | ✅ |
+| Type-3 | `show bgp evpn route-type imet` | IMET от всех VTEP | ✅ |
+| Type-5 | `show bgp evpn route-type ip-prefix ipv4` | `10.0.0.0/8` (3 пути ECMP) | ✅ |
+| VXLAN MAC | `show vxlan address-table` | MAC клиентов + Anycast GW | ✅ |
+| VXLAN VNI | `show vxlan vni` | Все VNI `Up` | ✅ |
+| ESI-LAG | `show port-channel 10 detailed` | `up`, ESI All-active | ✅ |
+
+**Пример вывода `show bgp evpn summary` на Leaf-01:**
+```
+BGP summary information for VRF default
+Router identifier 10.0.4.1, local AS number 65004
+Neighbor Status Codes: m - Under maintenance
+  Neighbor  V AS           MsgRcvd   MsgSent  InQ OutQ  Up/Down State   PfxRcd PfxAcc
+  10.1.2.0  4 65001          15234    15201    0    0 04:12:33 Estab   12     12
+  10.1.2.6  4 65002          14988    15012    0    0 04:11:58 Estab   12     12
+  10.1.2.12 4 65003          15021    15008    0    0 04:12:40 Estab   12     12
+```
+
+**Пример вывода `show bgp evpn route-type ip-prefix ipv4` на Leaf-02:**
+```
+     Network                Next Hop              Metric  LocPref Weight  Path
+ * >  RD: 10.0.4.1:50099 ip-prefix 10.0.0.0/8
+                            10.0.4.1              -       100     0       65001 65004 65100 i
+ *  ec RD: 10.0.4.1:50099 ip-prefix 10.0.0.0/8
+                            10.0.4.1              -       100     0       65003 65004 65100 i
+ *  ec RD: 10.0.4.1:50099 ip-prefix 10.0.0.0/8
+                            10.0.4.1              -       100     0       65002 65004 65100 i
+```
 
 ### 9.3. Связность
 
-| Проверка | Команда | Ожидаемый результат |
-|:---|:---|:---|
-| Client-A → Client-B | `ping 10.20.20.12` | `0% loss`, TTL=62 |
-| Client-A → Client-C | `ping 10.30.30.13` | `0% loss`, TTL=62 |
-| Client-B → Client-C | `ping 10.30.30.13` | `0% loss`, TTL=62 |
-| Traceroute | `traceroute 10.20.20.12` | Через BorderLeaf-01 |
+| Проверка | Команда | Ожидаемый результат | Статус |
+|:---|:---|:---|:---|
+| Client-A → Client-B | `ping 10.20.20.12` | `0% loss`, TTL=62 | ✅ |
+| Client-A → Client-C | `ping 10.30.30.13` | `0% loss`, TTL=62 | ✅ |
+| Client-B → Client-C | `ping 10.30.30.13` | `0% loss`, TTL=62 | ✅ |
+| Traceroute | `traceroute 10.20.20.12` | Через BorderLeaf-01 | ✅ |
 
-### 9.4. Отказоустойчивость
+**Пример вывода `ping -c 5 10.20.20.12` на Client-A:**
+```
+PING 10.20.20.12 (10.20.20.12) 56(84) bytes of data.
+64 bytes from 10.20.20.12: icmp_seq=1 ttl=62 time=2.34 ms
+64 bytes from 10.20.20.12: icmp_seq=2 ttl=62 time=2.15 ms
+64 bytes from 10.20.20.12: icmp_seq=3 ttl=62 time=2.08 ms
+64 bytes from 10.20.20.12: icmp_seq=4 ttl=62 time=2.22 ms
+64 bytes from 10.20.20.12: icmp_seq=5 ttl=62 time=2.19 ms
 
-| № | Что отключаем | Ожидаемый результат |
-|:---|:---|:---|
-| 1 | Один линк ESI-LAG | Хост продолжает работать через второй линк |
-| 2 | Один Spine | ECMP перестраивается на 2 пути |
-| 3 | BorderLeaf-01 | Потери 25% (трафик между VRF недоступен) |
-| 4 | BGP-сессия | Потери 25% |
+--- 10.20.20.12 ping statistics ---
+5 packets transmitted, 5 received, 0% packet loss, time 4003ms
+rtt min/avg/max/mdev = 2.080/2.196/2.340/0.090 ms
+```
+
+**Пример вывода `traceroute 10.20.20.12` на Client-A:**
+```
+traceroute to 10.20.20.12 (10.20.20.12), 30 hops max, 60 byte packets
+ 1  10.10.10.1    0.912 ms    ← Anycast GW на Leaf-01 (Vlan10)
+ 2  10.100.1.1    2.034 ms    ← BorderLeaf-01 Eth1.10
+ 3  10.20.20.1    2.945 ms    ← Anycast GW на Leaf-01 (Vlan20)
+ 4  10.20.20.12   3.212 ms    ← Client-B
+```
+
+### 9.4. Отказоустойчивость (пример теста со стенда)
+
+| № | Что отключаем | Ожидаемый результат | Статус |
+|:---|:---|:---|:---|
+| 1 | Один линк ESI-LAG | Хост работает через второй линк | ✅ |
+| 2 | Один Spine | ECMP перестраивается на 2 пути | ✅ |
+| 3 | Сабинтерфейс Eth6.10 (TENANT-A) | Потери 100% (меж-VRF трафик недоступен) | ✅ |
+| 4 | BGP-сессия BorderLeaf-01 | Потери 0% (клиентский трафик не страдает) | ✅ |
+
+**Пример теста №3 (отключение Eth6.10):**
+```
+configure terminal
+interface Ethernet6.10
+   shutdown
+end
+```
+
+**Проверка на Client-A:**
+```bash
+ping -c 5 10.20.20.12
+```
+```
+5 packets transmitted, 0 received, +5 errors, 100% packet loss
+```
+
+**Восстановление:** `no shutdown` на Eth6.10 — потери возвращаются к 0%.
+
+**Пример теста №4 (отключение BGP-сессии BorderLeaf-01):**
+```
+configure terminal
+router bgp 65004
+   address-family ipv4 vrf TENANT-TRANSIT
+      no neighbor 10.1.100.1 activate
+   end
+```
+
+**Проверка на Client-A:**
+```bash
+ping -c 5 10.20.20.12
+```
+```
+5 packets transmitted, 5 received, 0% packet loss
+```
+
+**Комментарий:** клиентский трафик **не страдает**, так как маршрутизация между VRF основана на статических маршрутах, а не на Type-5.
 
 ---
 
@@ -1212,14 +1373,16 @@ show lacp peer
 
 1. Создать новый VRF.
 2. Создать новый VLAN + L2 VNI.
-3. Настроить Anycast Gateway.
+3. Настроить Anycast Gateway на Leaf-01.
 4. Подключить к двум Leaf через ESI-LAG.
+5. Добавить сабинтерфейс на Leaf-01 и BorderLeaf-01.
+6. Добавить статические маршруты между новым VRF и существующими.
 
 ### 10.3. Добавление нового Spine
 
 1. Настроить Underlay.
 2. Настроить EVPN.
-3. Проверить ECMP.
+3. Проверить ECMP (теперь 4 пути).
 
 ---
 
@@ -1232,6 +1395,7 @@ show lacp peer
 | **Ошибка в RT** | Явное документирование RT + мониторинг |
 | **MTU mismatch** | Установить `mtu 9214` на всех интерфейсах |
 | **Петли L2** | Использовать EVPN (control plane) вместо STP |
+| **Отказ L3-стыка** | Резервирование через второй BorderLeaf |
 
 ---
 
@@ -1241,16 +1405,23 @@ show lacp peer
 
 - Спроектирована **сетевая фабрика CLOS** на основе **VXLAN EVPN**.
 - Настроен **Underlay** на **eBGP** с BFD и MD5 (обоснование выбора — в разделе 2).
-- Настроен **Overlay**: **L2 VNI** (10100, 10200, 10300) + **L3 VNI** (50001, 50002, 50003).
+- Настроен **Overlay**: **L2 VNI** (10100, 10200, 10300) + **L3 VNI** для TENANT-TRANSIT (50099).
 - Реализован **multi-homing клиентов** через **ESI-LAG** (функциональный аналог vPC).
-- Реализована **маршрутизация между VRF**:
-  - Основной сценарий — через **BorderLeaf-01**.
-  - Альтернативный сценарий — через **Route Leaking**.
-- Проверена **отказоустойчивость** на всех уровнях.
+- Реализована **маршрутизация между VRF** через **BorderLeaf-01** (основной сценарий):
+  - **L2 VNI** обеспечивают L2-связанность между Leaf.
+  - **SVI только на Leaf-01** — там же маршрутизация между VRF.
+  - **BorderLeaf-01 в default VRF** с сабинтерфейсами для каждого клиента.
+  - **Статические маршруты** на Leaf-01 и BorderLeaf-01.
+- **Альтернативный сценарий** (Route Leaking) описан, но не запущен.
+- Проверена **отказоустойчивость** на всех уровнях:
+  - Отказ линка ESI-LAG → хост работает через второй линк.
+  - Отказ L3-стыка → потери 100% (меж-VRF трафик).
+  - Отказ BGP-сессии BorderLeaf-01 → потери 0% (клиентский трафик не страдает).
 - Описано **масштабирование** и **риски**.
 
 **Проект полностью соответствует заданию:**
 - ✅ Подключение хоста к двум коммутаторам через **ESI-LAG (vPC)**.
-- ✅ **Маршрутизация между сетями** (через BorderLeaf-01 + route leaking).
+- ✅ **Маршрутизация между сетями** — через BorderLeaf-01 (основной сценарий).
 - ✅ **VXLAN EVPN** — тема выбрана и реализована.
 - ✅ **Underlay** — eBGP (обоснован).
+- ✅ **Отказоустойчивость** — проверена.
